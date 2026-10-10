@@ -1,0 +1,50 @@
+# Written by scripts/download_data.py. Pinned upstream commits and raw-file
+# checksums (CLAUDE.md §3.2). Do not edit by hand.
+bnintent30:
+  repo: JahidBasher/GAN-BnBERT
+  path: dataset/BNIntent30/
+  commit: 213bbcfad3a412e478a6ef1d447cb7b2e7f29060
+  resolved_from_branch: main
+  archive_url: https://codeload.github.com/JahidBasher/GAN-BnBERT/zip/213bbcfad3a412e478a6ef1d447cb7b2e7f29060
+  files_sha256:
+    bn_alarm.json: 414118d0b42c91505dd40ef8270c4ebbb468fa1be5205d1444f8727d479044ca
+    bn_calculator.json: 58e91f8a0ec52c53a6fdbe542d0bfdcda2bf74c32c19150df42db499f9dff267
+    bn_calendar.json: 46ccea9e8ab5199590308be1d191a8c8215a858760977d2363aeab78680cb150
+    bn_change_user_name.json: 301a39b07a1ff4a76393e7f9e288ac107de1f17dbf5b6daee8bcfaf196272beb
+    bn_change_volume.json: 9c75a5ca28af16099454bd1f89fbebc0c9591ba6fe0d9347b0cc7aed0f3b411b
+    bn_current_location.json: fac889554e46ce1364e1a199144bb448f02ddbad07987312a7c6f7a3d47daf3f
+    bn_date.json: 2a50e54004663be0a2951b887bda308f0b46703c0f0ccf6e4ef199389d4a2154
+    bn_distance.json: 9d670a032cf86f5f0bac6521abb9679976513d4c59dafac4b90626fb4963410a
+    bn_fun_fact.json: 4bb5a135303b3840f71a87b490f9be19c29a092b4eb8b5ddaa41edcf529cc201
+    bn_goodbye.json: a7bd5b1e708ddd7416ac47b5329e93d93e0de2cbd4a0afa4ccbf8176b485d8bb
+    bn_how_old_are_you.json: bc0390dca7b64033305dd604f183b05b03e2474f184ed15ce0cf24225d3429f1
+    bn_make_call.json: 95d4a3816f61a3d6346c1fb605ea3b0a5c7474d872cd9876ec046a09d776941c
+    bn_next_song.json: 5eaa8c5436d2ef3ebe913d1830bf9f399d58341668452e7418d0f5be38a44bb4
+    bn_no.json: e1c92fd4cdff427ea495baa3e2fb07682660e3f6c7f9d9376b72a3fe319c9ebf
+    bn_play_music.json: 502e7cebb2e89051465913f85f41d7b955d81684b67a6168e0bfa76599dde65a
+    bn_reminder.json: e110e0a2dee920f3467e208df8020dc5298d32d5b208387e53f7d30923cf3822
+    bn_repeat.json: 0642d38456f5250125c74cb67a7aee1db3a9b72b46289290838427b6905f82e4
+    bn_spelling.json: cc406a9b30752ac1fa69c8574f99e37095417f12fbc9dd437b5e086869832bf1
+    bn_tell_joke.json: ccedcc18f922eaf2321afc579239606c23661a302eaf0f3b8d21b650969a667d
+    bn_thank_you.json: c407b88df51a01f769e726378659592dc26425ee9b58b19147b8cd86aa16e451
+    bn_time.json: 85257f4a20678d03102f4b23e0da50ce6858045d0cc5c464f252624b8148684a
+    bn_todo_list.json: 5331e11c22657270f779a696de5fae0285418ec84bb52d9ad4b8940804b4387c
+    bn_traffic.json: dc0687c93d9fc29ac9bcffb1b305523c430a78494a77b9be2e5d412a9f75561f
+    bn_translate.json: 4fb8238fd9ebdb8d6e205cab703df15d17adf6da6ef99bf3a64a8ef2d806595d
+    bn_weather.json: 5af3443d1fbd506381ce1905515c22b5b05a97e21b01f562a70a459d2b77a733
+    bn_what_are_your_hobbies.json: 6fba9514fcdab084c855bb7fa33381f189f2ae19f36e16bbea5484a63f6517c9
+    bn_what_is_your_name.json: 7d21c07386eacf80b1a92472a14285da5d18062be4d869a0074b71169862a237
+    bn_what_song.json: dc7d27a268a43e6075c0b6ffae68418437d38167a2132c21e676400e93bbc3ca
+    bn_where_are_you_from.json: 15393af11544076b7ecbbef90001c58a2f7e09b2f4d1a4f33d0acafd78cff7e2
+    bn_yes.json: ce9be4a4d2fb09fa7ecfd1b024fe2afa7279751c01e2d950bb6cfc1b270fbe51
+banking77:
+  repo: PolyAI-LDN/task-specific-datasets
+  commit: 57ec275d8078af65b7731c2a98be812d844a6d6b
+  resolved_from_branch: master
+  license: CC-BY-4.0 (LICENSE file of PolyAI-LDN/task-specific-datasets)
+  urls:
+    train: https://raw.githubusercontent.com/PolyAI-LDN/task-specific-datasets/57ec275d8078af65b7731c2a98be812d844a6d6b/banking_data/train.csv
+    test: https://raw.githubusercontent.com/PolyAI-LDN/task-specific-datasets/57ec275d8078af65b7731c2a98be812d844a6d6b/banking_data/test.csv
+  files_sha256:
+    train.csv: b06e26ac675513959a63135f11b94ea7786ed02da65db93a5650d8838cbc664b
+    test.csv: d12d6e3bc4c3103966ae786dc435913c0c563dfa328f5a3646d0e62cfeeb474d

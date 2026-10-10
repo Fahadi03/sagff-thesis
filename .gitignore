@@ -1,0 +1,13 @@
+# --- Data: BNIntent30 has no license (CLAUDE.md §3.4). No text, raw or cleaned,
+# is ever committed. Only the split manifest (uids + sha256) is tracked.
+data/*
+!data/splits/
+data/splits/*
+!data/splits/manifest.json
+
+# --- Environment / tooling
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+logs/

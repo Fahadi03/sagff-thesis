@@ -1,0 +1,4 @@
+# Stage 1 (data). Later stages add their own dependencies.
+pandas==3.0.6
+PyYAML==6.0.3
+pytest==9.1.1

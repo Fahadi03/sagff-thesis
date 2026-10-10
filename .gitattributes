@@ -1,0 +1,2 @@
+# Byte-stable files on every OS (R3 reproducibility): never convert line endings.
+* text=auto eol=lf
