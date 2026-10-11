@@ -402,8 +402,8 @@ def write_report(tracks: dict, rep: dict, data_cfg: dict | None = None) -> str:
     L += ["**Comparison key** (`src.data.norm_key`, used by every decision): Unicode NFC, "
           "lowercased, every punctuation character (Unicode category P, incl. the Bangla danda) "
           "replaced by a space, whitespace collapsed. The \"exact key\" column re-runs the same "
-          "step on the same input with the raw string as key; it is reported for comparison only "
-          "and decides nothing.", "",
+          "step on the same input with the exact string (whitespace collapsed only, the Stage 1 "
+          "key) as key; it is reported for comparison only and decides nothing.", "",
           "Steps 2-4 are applied at row level to the union of problems found in either language "
           "(R9), so `bnintent30-en` and `bnintent30-bn` share one cleaned row set. Steps 3 and 4 "
           "are greedy in a fixed order (step 3: test, val, train, then uid; step 4: uid), and a row "
