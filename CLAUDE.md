@@ -307,6 +307,13 @@ baseline removes any suggestion that hyperparameters were tuned in favour of
 the proposed model; if it disadvantages anything, it disadvantages `sagff`. No
 per-head or per-regime tuning was performed.
 
+**Measured fact about this regime, which the paper reports**
+(`results/tables/stopping_diagnostic.md`, `sagff`, five seeds): mean training
+loss falls below 0.01 by epoch 4.2 (range 4-5) for `bnintent30-bn` and 4.0 (4-4)
+for `bnintent30-en` at k=5, and by epoch 7.2 (6-8) for `banking77` at k=5. Early
+stopping at k=5 therefore chooses among functionally converged models on a
+150-row validation set.
+
 **No regularisation tuning was performed.** Weight decay is 0.01 and dropout is
 `heads.dropout` for every head, untuned. Tuning them on the baseline head would
 tune them in the wrong place: at roughly 25k parameters the baseline barely
@@ -529,7 +536,11 @@ low-resource problem this paper studies.* Record it in limitations/future work.
 | run conditions | the five heads + `sagff-noise-perepoch` + `sagff-permuted-fixed` |
 
 3 tracks x 4 k x 5 seeds x 7 conditions = **420 runs**, plus 40 leaky-condition
-runs = **460**. On cached embeddings these are seconds to tens of seconds each.
+runs = **460**. On cached embeddings a run costs roughly 14-22 ms per optimizer
+step on this CPU, so wall time scales with training-set size times epochs: a few
+seconds at k=5, about a minute for BNIntent30 at k=full, and several minutes for
+BANKING77 at k=full with the large heads (measured in
+`results/diagnostics/stopping/`).
 
 **Run order matters** (the grid must be resumable and must follow this order, so
 that if time runs out the core claim is already complete):
@@ -711,8 +722,10 @@ grid if anything fails.**
   `torch.use_deterministic_algorithms(True)` where possible; log anything you
   cannot make deterministic.
 - **CPU-aware:** set thread counts explicitly and log them. Head training on
-  cached embeddings should take seconds — if a run takes minutes, something is
-  recomputing embeddings. Stop and find out why.
+  cached embeddings costs roughly 14-22 ms per optimizer step; a run whose time
+  per step is far above that is recomputing something (e.g. embeddings). Stop and
+  find out why. Long runs are expected only where the step count is large
+  (BANKING77 at k=full).
 - **Report blockers early, in plain language.** A surprising number, a count
   that does not match §3.3, a test that cannot be satisfied — surface it. Never
   paper over it.
