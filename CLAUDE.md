@@ -179,6 +179,15 @@ paper's quantity is the displacement at the selected best epoch; the final-epoch
 values show whether it depends on the stopping point
 (`results/tables/stopping_diagnostic.md`).
 
+Two further gate records, added because of the observed stopping behaviour:
+- **Trajectory:** `gate_mean` and `gate_std` (scalars only) at EVERY epoch, inside
+  `training_log.curve`, on the same test split.
+- **Convergence-anchored readout:** the four statistics at the first epoch whose
+  mean training loss falls below `training.converged_loss_threshold` (0.01), under
+  `gate_converged_*`, with the derived `gate_displacement_converged` (null if the
+  loss never fell below the threshold). It is deterministic, free of validation
+  noise and comparable across regimes.
+
 These go in the run JSON. Not optional.
 
 ### R8 — Never report a number that did not come out of `results/runs/`
@@ -716,6 +725,12 @@ grid if anything fails.**
 
 ## 9. Working style
 
+- **When a methodological choice is genuinely uncertain, take the option that
+  WEAKENS our claim.** This rule guides every remaining methodological choice.
+- **Design and confound reasoning may come from the supervisor; every NUMBER comes
+  from the code.** Three times in this project a number asserted from intuition
+  ("runs take seconds", "loss reaches zero by epoch 3", "~76 rows") was wrong and
+  was corrected by measurement. Never write a number that has not been measured.
 - **Smoke test before the grid.** One track, k=5, one seed, one head. Confirm a
   valid JSON log. Only then run the grid.
 - **Determinism:** seed `random`, `numpy`, `torch`; set
@@ -764,6 +779,43 @@ not listed here is reported as exploratory and labelled as such.
 - The final-epoch displacement (`gate_displacement_final_epoch.mean`) is analysed
   with the same S1-S3 as a pre-specified SENSITIVITY analysis, not as a
   replacement.
+- **Amendment (three readouts).** S1, S2 and S3 are reported on three gate
+  readouts: the best-epoch displacement (`gate_displacement.mean`, PRIMARY), the
+  final-epoch displacement (`gate_displacement_final_epoch.mean`, sensitivity) and
+  the convergence-anchored displacement (`gate_displacement_converged.mean`, the
+  first epoch with mean training loss below 0.01; sensitivity). If all three agree
+  in direction, the paper states that in one sentence and the stopping question is
+  closed. Runs whose loss never falls below the threshold have no
+  convergence-anchored value; they are excluded from that readout only, with the
+  reduced n stated.
+- **Why the primary readout is the conservative one.** In the stopping diagnostic
+  (`results/tables/stopping_diagnostic.md`, five seeds), the best-epoch gate at k=5
+  sits ABOVE the final-epoch gate on every track (best minus final is positive in
+  all fifteen k=5 runs), while at k=full the two agree within noise. Under S1's
+  predicted direction (a more negative displacement at small k), the best-epoch
+  readout therefore yields a SMALLER k-trend than the final-epoch readout would.
+  Whatever the stopping point does, it suppresses the effect we predict rather than
+  inflating it. The paper says so explicitly.
+
+**Disclosure: the stopping diagnostic.** The analysis plan above was fixed at
+commit 44bd224, before any grid run. A 30-run stopping diagnostic (`sagff`, all
+three tracks, k = 5 and k = full, all five seeds; `results/diagnostics/stopping/`)
+was examined afterwards. These runs are deterministic, so they are identical to the
+corresponding grid runs: they are a subset of S1's data, seen after the plan was
+fixed. They were not deleted or regenerated. Deleting them would only make the
+record false, because regenerating them yields identical numbers. In response to
+the stopping behaviour they revealed (a MECHANISM, not the direction of any
+result), two sensitivity readouts were added: the per-epoch gate trajectory and
+the convergence-anchored readout, in the commit that introduced this amendment
+(`git log --format=%h -S "Amendment (three readouts)" -- CLAUDE.md`). Rule for
+any later change: it must be justified by a mechanism, never by the direction of a
+result. The direction of the primary k-trend was not examined before the full grid
+completed.
+
+**Commitment.** The k-trend in the 30 diagnostic runs is not reported or
+interpreted until the full grid is complete; the gate values in those runs are
+used only for the stopping-point question they were run for. Manuscript-ready
+wording: `docs/preregistration_disclosure.md`.
 
 **S1 — signature hypothesis.** Spearman rank correlation between k (5 < 10 < 20
 < full, as ranks) and the `sagff` gate displacement, computed separately per

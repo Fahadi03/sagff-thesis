@@ -145,3 +145,4 @@ training:
     runs: results/selection/lr/
     history: '2026-10-11: grid {3e-4,1e-3,3e-3} -> 3e-3, run from an uncommitted tree
       (logs in results/selection/lr_218bd44_uncommitted/); this run supersedes it'
+  converged_loss_threshold: 0.01

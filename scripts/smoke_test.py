@@ -31,9 +31,14 @@ def validate(log: dict) -> list[str]:
             p.append(f"{prefix}mean_per_dim has length {len(g[f'{prefix}mean_per_dim'])}, expected {d}")
         if len(g[f"{prefix}hist"]) != 20 or sum(g[f"{prefix}hist"]) != n_test * d:
             p.append(f"{prefix}hist must have 20 bins summing to n_test*d_model")
-    for key in ("gate_displacement", "gate_displacement_final_epoch"):
+    for key in ("gate_displacement", "gate_displacement_final_epoch", "gate_displacement_converged"):
         if key not in g:
             p.append(f"missing derived {key}")
+    if g.get("gate_displacement_converged") is not None and len(g["gate_converged_mean_per_dim"]) != d:
+        p.append("gate_converged_mean_per_dim has the wrong length")
+    curve = log["training_log"]["curve"]
+    if not all("gate_mean" in c and "gate_std" in c for c in curve):
+        p.append("per-epoch gate_mean/gate_std missing from the curve")
     if log["metrics"]["val_full_diagnostic"]["used_for_selection"] is not False:
         p.append("val_full_diagnostic must be marked used_for_selection=false")
     if not log["head"]["param_count"]:

@@ -7,6 +7,21 @@
     restore best epoch -> evaluate on test -> gate statistics at the best epoch ->
     one JSON, even on failure.
 
+Gate readouts for sagff-head runs (all on the TEST split, none used for selection):
+  gate_init_*       at initialisation
+  gate_*            at the epoch selected by early stopping   (primary, R7)
+  gate_final_*      at the final trained epoch                (sensitivity)
+  gate_converged_*  at the first epoch whose mean training loss falls below
+                    training.converged_loss_threshold         (sensitivity; deterministic,
+                                                               free of validation noise)
+  curve[*].gate_mean / gate_std   at every epoch (the trajectory; scalars only)
+
+Per-epoch control, validation quirk (also a manuscript footnote): during training
+the k-matched validation split of `sagff-noise-perepoch` is scored under that
+epoch's own permutation, which is what early stopping sees; the validation metric
+logged after training is recomputed under the fixed evaluation permutation, so it
+need not equal the value that drove selection. Both are noise by construction.
+
 Run conditions, in grid order (§5, CONDITIONS): sagff, baseline-cap, concat-cap,
 sagff-noise-perepoch, sagff-permuted-fixed, baseline, concat. The two controls
 use the sagff head with real, train-fitted features whose utterance -> vector
@@ -245,9 +260,12 @@ def _run(spec: RunSpec) -> dict:
         return logits.argmax(-1).numpy(), aux.get("gate")
 
     gate_log = {}
-    if spec.head == "sagff" and spec.evaluate_test:
+    track_gate = spec.head == "sagff" and spec.evaluate_test
+    if track_gate:
         _, g0 = predict("test")
         gate_log.update(gate_stats(g0.numpy(), "gate_init_"))
+    converged_threshold = float(tr["converged_loss_threshold"])
+    converged_epoch = None
 
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=float(tr["weight_decay"]))
     loss_fn = nn.CrossEntropyLoss()
@@ -269,7 +287,18 @@ def _run(spec: RunSpec) -> dict:
             opt.step()
             total += float(loss.detach()) * len(idx)
         val = macro_f1_acc(y["val"], predict("val", epoch_features("val", epoch))[0], n_classes)["macro_f1"]
-        curve.append({"epoch": epoch, "train_loss": round(total / len(y_tr), 6), "val_macro_f1": round(val, 6)})
+        train_loss = total / len(y_tr)
+        point = {"epoch": epoch, "train_loss": round(train_loss, 6), "val_macro_f1": round(val, 6)}
+        if track_gate:
+            # N: gate trajectory (scalars only); never used for selection
+            g_ep = predict("test")[1].numpy()
+            point["gate_mean"] = round(float(g_ep.mean()), 6)
+            point["gate_std"] = round(float(g_ep.std()), 6)
+            # O: convergence-anchored readout, first epoch with loss below the threshold
+            if converged_epoch is None and train_loss < converged_threshold:
+                converged_epoch = epoch
+                gate_log.update(gate_stats(g_ep, "gate_converged_"))
+        curve.append(point)
         if val > best["val_macro_f1"]:           # strict improvement; ties keep the earlier epoch
             best = {"val_macro_f1": val, "epoch": epoch, "state": copy.deepcopy(model.state_dict())}
             patience_left = int(tr["patience"])
@@ -305,6 +334,13 @@ def _run(spec: RunSpec) -> dict:
                 "mean_abs_per_dim": round(float(np.mean(np.abs(
                     np.array(gate_log["gate_final_mean_per_dim"]) - init_dim))), 6),
                 "best_minus_final_gate_mean": round(gate_log["gate_mean"] - gate_log["gate_final_mean"], 6),
+            }
+            # O: convergence-anchored sensitivity readout (None if loss never fell below the threshold)
+            gate_log["gate_displacement_converged"] = None if converged_epoch is None else {
+                "epoch": converged_epoch, "loss_threshold": converged_threshold,
+                "mean": round(gate_log["gate_converged_mean"] - gate_log["gate_init_mean"], 6),
+                "mean_abs_per_dim": round(float(np.mean(np.abs(
+                    np.array(gate_log["gate_converged_mean_per_dim"]) - init_dim))), 6),
             }
 
     return {
