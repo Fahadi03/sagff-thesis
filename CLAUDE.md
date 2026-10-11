@@ -70,9 +70,13 @@ Write this distinction as a comment in the caching script, and state it in the
 paper's methodology section. A reviewer will check it.
 
 ### R2 — Identical backbone and identical head hyperparameters across compared models
-The `baseline`, `concat`, `sagff` and `baseline-cap` heads use the **same cached embeddings,
-same optimizer, same LR, same schedule, same epochs, same batch size, same
-seed, same early-stopping rule**. The only difference is the head's structure.
+All five heads (`baseline`, `concat`, `baseline-cap`, `concat-cap`, `sagff`) and
+the `sagff-permuted` control use the **same cached embeddings, same optimizer,
+same LR, same schedule, same epochs, same batch size, same seed, same
+early-stopping rule**. The only difference is the head's structure (and, for
+`sagff-permuted`, the permuted feature mapping). **No per-head or per-regime
+tuning was performed:** the training hyperparameters (§2, "Training") are one
+set, applied unchanged to every head, condition, track and k.
 
 If a model needs a different hyperparameter to train at all, report it instead of
 changing one side only.
@@ -113,7 +117,9 @@ R3 also fixes, as requirements rather than implementation details:
 - primary metric: **Macro-F1** on test
 - model-vs-model test: **Wilcoxon signed-rank**, paired over (track, k, seed)
 - **trend test for the signature hypothesis: Spearman rank correlation between
-  `k` and `gate_mean`**, computed per track, with p-value and n
+  `k` and the gate DISPLACEMENT** (`gate_displacement.mean` = `gate_mean` -
+  `gate_init_mean`, see R7), computed per track, with p-value and n, for `sagff`
+  and for the `sagff-permuted` control separately (§2, "The permuted control")
 
 That last one matters: Wilcoxon compares models to each other, it says nothing
 about whether gate reliance changes with k. The paper's central claim needs its
@@ -134,13 +140,16 @@ time, and the gate statistics (R7). On an exception, write the JSON with
 `"status": "failed"` and the traceback. Never overwrite an existing run file.
 
 Every run JSON also records:
-- the trainable parameter count of its head (all four heads are tabulated in
+- the trainable parameter count of its head (all five heads are tabulated in
   `results/tables/head_capacity.md`);
 - the number of all-zero TF-IDF rows in its test split. For those items the
   TF-IDF family carries no information at all, which is itself relevant to when
   features help; the paper reports it;
 - the degenerate (constant-on-train) utterance statistics, from
-  `HandcraftedFeatures.report()["degenerate_stats"]`.
+  `HandcraftedFeatures.report()["degenerate_stats"]`;
+- `dirty` and `permuted` flags (true only for the leaky condition and for
+  `sagff-permuted` respectively), and for permuted runs the permutation's
+  per-split size and fixed-point count.
 
 ### R7 — Gate statistics are the paper's main result, not a debug print
 For every `sagff` run, record over the **test** split:
@@ -148,6 +157,16 @@ For every `sagff` run, record over the **test** split:
 - `gate_std`
 - `gate_mean_per_dim` — length-`d_model` list
 - `gate_hist` — 20-bin histogram over [0,1] of all gate values
+
+The same four statistics are recorded on the same test split BEFORE training,
+at initialisation, under `gate_init_mean`, `gate_init_std`,
+`gate_init_mean_per_dim`, `gate_init_hist`. The quantity the paper analyses is
+the DISPLACEMENT from initialisation, not the final level: the run JSON carries
+the derived field `gate_displacement` (`mean` = `gate_mean` - `gate_init_mean`;
+`mean_abs_per_dim` = mean over dimensions of |final - init|), and the analysis
+uses it. Reason: with 150 training examples the gate can move little from its
+starting point, with 2,672 it can move a great deal, so the final level alone
+would change with k for reasons of optimisation, not feature reliance.
 
 These go in the run JSON. Not optional.
 
@@ -199,25 +218,70 @@ Things that are easy to get wrong and must not be:
   handcrafted features.** Never flip this. Every figure and sentence depends on
   the direction.
 
-### The four heads (one cached embedding set, four heads)
-1. `baseline` — `Classifier(Dropout(LayerNorm(e)))`, no handcrafted features
-2. `concat` — `Classifier(Dropout([h_enc ; h_feat_p]))`, the fusion ablation
-3. `sagff` — as above
-4. `baseline-cap` — `Classifier(Dropout(LayerNorm(W2 @ gelu(W1 @ h_enc))))`, no
-   handcrafted features; a parameter-matched pure-encoder control
+### The five heads (one cached embedding set, five heads)
+| head | handcrafted features | gate | definition |
+|---|---|---|---|
+| `baseline` | no | no | `Classifier(Dropout(LayerNorm(e)))` |
+| `concat` | yes | no | `Classifier(Dropout([h_enc ; h_feat_p]))` |
+| `baseline-cap` | no | no | `Classifier(Dropout(LayerNorm(W2 @ gelu(W1 @ h_enc))))` |
+| `concat-cap` | yes | no | `Classifier(Dropout(LayerNorm(W2 @ gelu(W1 @ [h_enc ; h_feat_p]))))` |
+| `sagff` | yes | yes | as above |
+
+`baseline-cap` and `concat-cap` are parameter-matched to `sagff`
+(`results/tables/head_capacity.md`; widths frozen in `configs/default.yaml`):
+`baseline-cap` within 20%, `concat-cap` within 1%.
+
+**DESIGNATED PRIMARY (CONFIRMATORY) COMPARISONS — both at matched capacity:**
+1. **`baseline-cap` vs `concat-cap`** — does handcrafted information help?
+2. **`concat-cap` vs `sagff`** — does gating help?
+
+`baseline` and `concat` remain as reference points to prior-work-style setups;
+comparisons involving them are descriptive, not confirmatory. The analysis must
+lead with the two primary comparisons and the signature hypothesis, so it does
+not drown in five heads.
 
 `concat` exists to answer the first question any reviewer asks: *was the gate
 actually necessary, or would plain concatenation have done the same?* It is not
 optional.
 
-`baseline-cap` exists because `sagff`'s head is roughly two orders of magnitude
-larger than `baseline`'s (W_p and W_g). Without it, a weak `sagff` result at low k
-could be blamed on a large head trained on few examples rather than on the
-features. Its hidden width is chosen so its parameter count is within 20% of
-`sagff`'s (`src.models.cap_hidden_for`, frozen in `configs/default.yaml`), so
-baseline-vs-sagff tests information rather than capacity. It does not affect
-the signature hypothesis (gate_mean vs k, internal to `sagff`) or
-`sagff`-vs-`concat` (both carry W_p).
+Why the capped heads exist: `sagff`'s head is roughly two orders of magnitude
+larger than `baseline`'s, and about 2.8x larger than `concat`'s, because W_g
+alone exceeds W_p. Without matched controls, a weak `sagff` result at low k
+could be blamed on a large head trained on few examples, and a `sagff` > `concat`
+gap on the gate's extra parameters. The capped heads make both comparisons
+tests of information and of gating rather than of capacity.
+
+### Gate initialisation and the permuted control (the signature hypothesis)
+- **Initialisation.** W_g's bias is set explicitly to `heads.gate_bias_init` in
+  `configs/default.yaml` (0.0, so g is approximately 0.5 at initialisation); the
+  W_g weights keep PyTorch's default initialisation under the run seed. The value
+  lives in the config, not in the code.
+- **`sagff-permuted`** — a sixth run condition: identical to `sagff` in every
+  respect, except that within each split (train, val, test) the mapping from
+  utterance to handcrafted feature vector is permuted, deterministically from the
+  run's seed (`src.train.permutation`). This preserves every marginal property
+  of the feature branch — sparsity, scale, dimension, distribution — while
+  destroying its relationship to the label. Tagged `permuted=true`. All tracks,
+  all k, all seeds: 60 runs. It runs immediately after the `sagff` runs.
+- **The logic, which belongs in the paper.** If the gate-displacement trend under
+  permuted features differs from the trend under real features, the gate is
+  tracking feature INFORMATIVENESS, which is the paper's claim. If the two trends
+  are the same, the gate is tracking optimisation dynamics, and the signature
+  hypothesis does not survive. Either outcome is reportable, and we report
+  whichever occurs.
+
+### Training (identical for every head, condition, track and k)
+AdamW, weight decay 0.01, batch size 32, dropout `heads.dropout`, gradient
+clipping 1.0, constant learning rate, up to 200 epochs, early stopping with
+patience 20 on Macro-F1 of the k-matched validation split (§3.5); the best
+epoch is restored before testing. The learning rate was chosen ONCE from
+{3e-4, 1e-3, 3e-3} on validation using the `baseline` head ONLY
+(`scripts/select_lr.py`, `results/tables/lr_selection.md`) and applied unchanged
+to all six conditions; its value and provenance are frozen in
+`configs/default.yaml` (`training.lr`, `training.lr_selection`). Selecting on the
+baseline removes any suggestion that hyperparameters were tuned in favour of
+the proposed model; if it disadvantages anything, it disadvantages `sagff`. No
+per-head or per-regime tuning was performed.
 
 ---
 
@@ -387,14 +451,21 @@ k-matched validation data only, with the handcrafted branch alone, by the rule
 `configs/default.yaml` (`scripts/select_feature_dims.py`,
 `results/tables/feature_dim_selection.md`).
 
-`uppercase_ratio` stays in every track, including where it is degenerate
-(constant on the train split). As measured (`results/tables/feature_overview.md`):
-it is degenerate in every `bnintent30-en` split, because the CLINC150-derived
-English source is lowercased, and in some `bnintent30-bn` k=5 splits; Bangla has
-no case, so its non-zero values come only from embedded Latin script. This is a
-property of the scripts and sources, not a design flaw: log it as degenerate
-(`degenerate_stats`); the paper notes that Bangla affords fewer usable surface
-features, which is itself part of the low-resource picture.
+`uppercase_ratio` stays in every track. As measured
+(`results/tables/feature_overview.md`), the column is degenerate (constant on the
+train split) in every `bnintent30-en` split because the CLINC150 source text is
+lowercased, and in only some `bnintent30-bn` k=5 splits because embedded Latin
+script supplies uppercase. It is a dataset preprocessing artifact, not a property
+of either language. It is logged per run as `degenerate_stats`. It is kept
+because removing it would change F and invalidate the frozen dimension selection.
+
+**All-zero TF-IDF rows are a result, not a caveat**
+(`results/tables/tfidf_coverage.md`). The char n-gram vectors are never empty,
+so the handcrafted branch is never silent — only its word-level component is.
+At k=5, on parallel data at identical k, the TF-IDF family is silent for 9.0% of
+Bangla test items versus 4.5% of English (means over five seeds). Together with
+the higher Bangla test-token OOV rates, this is the second measured piece of
+evidence for retaining the char n-gram family. Report the table.
 
 ### POS features are DROPPED — do not add them back
 A Bangla POS tagger exists (`bnlp_toolkit`'s CRF `BengaliPOS`) and roughly works,
@@ -421,17 +492,20 @@ low-resource problem this paper studies.* Record it in limitations/future work.
 | Tracks | `bnintent30-en`, `bnintent30-bn`, `banking77` |
 | k | 5, 10, 20, full |
 | seeds | 13, 42, 87, 100, 2026 |
-| heads | baseline, concat, sagff, baseline-cap |
+| heads | baseline, concat, baseline-cap, concat-cap, sagff |
+| run conditions | the five heads + `sagff-permuted` |
 
-3 x 4 x 5 x 4 = **240 runs**. On cached embeddings these are seconds each.
+3 tracks x 4 k x 5 seeds x 6 conditions = **360 runs**, plus 40 leaky-condition
+runs = 400. On cached embeddings these are seconds to tens of seconds each.
 
 **Run order matters** (the grid must be resumable and must follow this order, so
 that if time runs out the core claim is already complete):
 1. `bnintent30-bn` and `bnintent30-en` — the primary parallel comparison
 2. `banking77` — the generality check
 
-Within each track the heads run in the order `baseline`, `concat`, `sagff`,
-`baseline-cap`. `baseline-cap` is last so it can be dropped if time runs out.
+Within each track the conditions run in the order `baseline`, `concat`, `sagff`,
+`sagff-permuted`, `concat-cap`, `baseline-cap` (`src.train.CONDITIONS`).
+`sagff-permuted` runs immediately after `sagff` and is never optional.
 
 **Plus the leaky-condition set.** Repeat `bnintent30-bn`, heads `sagff` and
 `baseline`, all k, all seeds, on splits built from the official assignment with
@@ -452,7 +526,9 @@ uncleaned val portion.
 
 **Out of scope — do not build, do not suggest building:** CLINC150, HWU64,
 MASSIVE, the Banglish/code-mixed subset, scalar-vs-vector gate ablation,
-prompt/LLM baselines, hyperparameter search, POS features.
+prompt/LLM baselines, hyperparameter search (beyond the two one-off,
+validation-only selections already made and frozen: feature dimensions §4 and
+learning rate §2), POS features.
 
 **Optional, only if everything above is finished and verified:** a
 full-fine-tuning supplementary on free cloud GPU — `bnintent30-en` and
@@ -469,7 +545,11 @@ show the trend survives fine-tuning. Ask before starting this.
   This matters: CLS is only a good sentence representation *after* fine-tuning.
   With a frozen encoder, mean pooling is substantially better. Record
   `pooling: "mean"` in every run JSON.
-- fixed `max_length` (state the value; truncation count must be logged)
+- fixed `max_length` (state the value; truncation count must be logged).
+  Implemented: `FacebookAI/xlm-roberta-base` pinned to its hub revision in
+  `src/embeddings.py`; `max_length` = 128; the cache per track covers every uid
+  of the clean and leaky conditions; timings, truncation counts and shapes are in
+  each sidecar JSON
 - writes `data/cache/<track>_<encoder>_<pooling>.npy` plus a sidecar JSON with
   the `uid` order, encoder name, revision, pooling, max_length and sha256
 - is idempotent: if the cache and sidecar exist and match, do nothing
@@ -499,6 +579,7 @@ Expect roughly 20 minutes on CPU for all three tracks, once.
 ├── src/
 │   ├── data.py             # load, clean, uid assignment
 │   ├── features.py         # the three families, fit/transform
+│   ├── embeddings.py       # frozen-encoder cache: encode once, load by uid
 │   ├── models.py           # baseline / concat / sagff / baseline-cap heads
 │   ├── train.py            # single run -> one JSON log
 │   └── analysis.py         # JSON logs -> tables + figures
@@ -508,6 +589,7 @@ Expect roughly 20 minutes on CPU for all three tracks, once.
 │   ├── cache_embeddings.py
 │   ├── verify_manifest.py
 │   ├── leakage_dose.py     # dose-response table for the leaky condition
+│   ├── select_lr.py        # one-off, validation-only, baseline head only, then frozen
 │   ├── select_feature_dims.py  # one-off, validation-only, then frozen
 │   ├── head_capacity.py    # baseline-cap width + parameter table
 │   ├── feature_report.py
@@ -520,6 +602,8 @@ Expect roughly 20 minutes on CPU for all three tracks, once.
 │   └── test_models.py      # §2 head spec (vector gate, capacity match)
 ├── results/
 │   ├── runs/               # one JSON per run
+│   ├── selection/          # JSON logs of the one-off selection runs (not results)
+│   ├── smoke/              # smoke-test JSON
 │   ├── tables/
 │   └── figures/
 └── README.md               # reproduction commands
@@ -566,9 +650,13 @@ that every class keeps at least 20 train rows. PROVES the cleaned row sets meet
 §3.3. Does NOT prove the official labels are correct.
 
 `tests/test_models.py` asserts the §2 spec: the gate is a `(B, d_model)` vector
-in (0, 1); feature-free heads ignore `h_feat`; feature heads use it;
-`baseline-cap` is within 20% of `sagff`'s parameter count; logged counts match
-the modules. PROVES the architecture. Does NOT prove anything about training.
+in (0, 1); the gate bias comes from the config and the mean gate at
+initialisation is ~0.5; feature-free heads ignore `h_feat`; feature heads use
+it; `baseline-cap` is within 20% and `concat-cap` within 1% of `sagff`'s
+parameter count; logged counts match the modules; `sagff-permuted` follows
+`sagff` in the grid order; the permutation is deterministic, seed- and
+split-dependent and a true permutation. PROVES the architecture and the control's
+construction. Does NOT prove anything about training.
 
 `scripts/run_all.py` runs the whole test suite first and **refuses to start the
 grid if anything fails.**

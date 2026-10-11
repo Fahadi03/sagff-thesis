@@ -1,0 +1,416 @@
+{
+ "run_id": "bnintent30-bn__k5__seed13__baseline__lr0.003",
+ "status": "ok",
+ "spec": {
+  "track": "bnintent30-bn",
+  "k": "5",
+  "seed": 13,
+  "condition": "baseline",
+  "dirty": false,
+  "lr": 0.003,
+  "evaluate_test": false,
+  "log_dir": "results/selection/lr",
+  "tag": "lr0.003",
+  "head": "baseline"
+ },
+ "dirty": false,
+ "permuted": false,
+ "git": {
+  "commit": "218bd449c62c68f128186dd3d70e8dd8af650461",
+  "working_tree_dirty": true
+ },
+ "config": {
+  "track": "bnintent30-bn",
+  "k": "5",
+  "seed": 13,
+  "condition": "baseline",
+  "head": "baseline",
+  "dirty": false,
+  "permuted": false,
+  "training": {
+   "optimizer": "AdamW",
+   "lr": 0.003,
+   "weight_decay": 0.01,
+   "batch_size": 32,
+   "grad_clip": 1.0,
+   "max_epochs": 200,
+   "patience": 20,
+   "lr_schedule": "constant",
+   "selection_metric": "Macro-F1 on the k-matched validation split (val.jsonl)",
+   "loss": "cross-entropy",
+   "threads": 6,
+   "tuning_note": "identical for every head, condition, track and regime; no per-head or per-regime tuning. lr selected once on validation with the baseline head only."
+  },
+  "heads": {
+   "d_model": 768,
+   "feat_dim": 774,
+   "dropout": 0.1,
+   "gate_bias_init": 0.0,
+   "baseline_cap_hidden": 1152,
+   "concat_cap_hidden": 512
+  },
+  "features": {
+   "tfidf_dim": 256,
+   "chargram_dim": 512,
+   "stats_dim": 6
+  }
+ },
+ "libraries": {
+  "python": "3.13.3",
+  "numpy": "2.5.3",
+  "scipy": "1.18.1",
+  "scikit-learn": "1.9.1",
+  "torch": "2.14.1+cpu"
+ },
+ "determinism": {
+  "torch_deterministic_algorithms": true,
+  "threads": 6,
+  "seeded": [
+   "random",
+   "numpy",
+   "torch",
+   "shuffle generator"
+  ]
+ },
+ "encoder": {
+  "name": "FacebookAI/xlm-roberta-base",
+  "revision": "e73636d4f797dec63c3081bb6ed5c7b0bb3f2089",
+  "pooling": "mean",
+  "max_length": 128,
+  "cache_sha256": "84e10f26456fd63709c566e487c52e9f88ad54a50448ee87e15588b783e4426d"
+ },
+ "splits": {
+  "sha256": {
+   "train": "0bbeaa261a64d70ede73b41c5c1744155465e74dff5c31d9e69817212159897f",
+   "val": "22e24ffd2a83eb7428de69d84ea9a1241c7e647145af887b202be40e732fb97f",
+   "val_full": "7290e242a7ad4f1a67d07f1759858b4913a619a0174a336ece2d58a898c85284"
+  },
+  "sizes": {
+   "train": 150,
+   "val": 150,
+   "val_full": 568
+  },
+  "label_names": [
+   "alarm",
+   "calculator",
+   "calendar",
+   "change_user_name",
+   "change_volume",
+   "current_location",
+   "date",
+   "distance",
+   "fun_fact",
+   "goodbye",
+   "how_old_are_you",
+   "make_call",
+   "next_song",
+   "no",
+   "play_music",
+   "reminder",
+   "repeat",
+   "spelling",
+   "tell_joke",
+   "thank_you",
+   "time",
+   "todo_list",
+   "traffic",
+   "translate",
+   "weather",
+   "what_are_your_hobbies",
+   "what_is_your_name",
+   "what_song",
+   "where_are_you_from",
+   "yes"
+  ]
+ },
+ "features": {
+  "dims": {
+   "tfidf": 256,
+   "chargram": 512,
+   "stats": 6,
+   "total": 774
+  },
+  "tfidf_vocab_size": 401,
+  "tfidf_selected": 256,
+  "tfidf_padded_columns": 0,
+  "degenerate_stats": [],
+  "transform_log": {
+   "train": {
+    "n": 150,
+    "tfidf_empty_rows": 5,
+    "chargram_empty_rows": 0
+   },
+   "val": {
+    "n": 150,
+    "tfidf_empty_rows": 16,
+    "chargram_empty_rows": 0
+   },
+   "val_full": {
+    "n": 568,
+    "tfidf_empty_rows": 66,
+    "chargram_empty_rows": 0
+   }
+  },
+  "all_zero_tfidf_test_rows": null,
+  "fit": {
+   "split": "train",
+   "n": 150,
+   "texts_sha256": "aa09df4e2f8465e8968f867ae322a446781a3f72faffa7fdf4ccde26bfa69a3a",
+   "n_fits": 1
+  },
+  "used_by_head": false,
+  "permutation": null
+ },
+ "head": {
+  "name": "baseline",
+  "param_count": 24606
+ },
+ "training_log": {
+  "best_epoch": 25,
+  "epochs_run": 45,
+  "stopped_early": true,
+  "curve": [
+   {
+    "epoch": 1,
+    "train_loss": 3.587348,
+    "val_macro_f1": 0.048551
+   },
+   {
+    "epoch": 2,
+    "train_loss": 3.296008,
+    "val_macro_f1": 0.183661
+   },
+   {
+    "epoch": 3,
+    "train_loss": 3.157566,
+    "val_macro_f1": 0.235149
+   },
+   {
+    "epoch": 4,
+    "train_loss": 3.037601,
+    "val_macro_f1": 0.241981
+   },
+   {
+    "epoch": 5,
+    "train_loss": 2.853016,
+    "val_macro_f1": 0.430176
+   },
+   {
+    "epoch": 6,
+    "train_loss": 2.725388,
+    "val_macro_f1": 0.465911
+   },
+   {
+    "epoch": 7,
+    "train_loss": 2.60066,
+    "val_macro_f1": 0.512829
+   },
+   {
+    "epoch": 8,
+    "train_loss": 2.44122,
+    "val_macro_f1": 0.536474
+   },
+   {
+    "epoch": 9,
+    "train_loss": 2.298863,
+    "val_macro_f1": 0.570597
+   },
+   {
+    "epoch": 10,
+    "train_loss": 2.162474,
+    "val_macro_f1": 0.597868
+   },
+   {
+    "epoch": 11,
+    "train_loss": 2.029593,
+    "val_macro_f1": 0.56646
+   },
+   {
+    "epoch": 12,
+    "train_loss": 1.893371,
+    "val_macro_f1": 0.551075
+   },
+   {
+    "epoch": 13,
+    "train_loss": 1.755671,
+    "val_macro_f1": 0.557866
+   },
+   {
+    "epoch": 14,
+    "train_loss": 1.634657,
+    "val_macro_f1": 0.561732
+   },
+   {
+    "epoch": 15,
+    "train_loss": 1.50059,
+    "val_macro_f1": 0.584537
+   },
+   {
+    "epoch": 16,
+    "train_loss": 1.377168,
+    "val_macro_f1": 0.557928
+   },
+   {
+    "epoch": 17,
+    "train_loss": 1.267208,
+    "val_macro_f1": 0.582182
+   },
+   {
+    "epoch": 18,
+    "train_loss": 1.163257,
+    "val_macro_f1": 0.583054
+   },
+   {
+    "epoch": 19,
+    "train_loss": 1.04283,
+    "val_macro_f1": 0.626655
+   },
+   {
+    "epoch": 20,
+    "train_loss": 0.942958,
+    "val_macro_f1": 0.622523
+   },
+   {
+    "epoch": 21,
+    "train_loss": 0.858043,
+    "val_macro_f1": 0.588835
+   },
+   {
+    "epoch": 22,
+    "train_loss": 0.7831,
+    "val_macro_f1": 0.552996
+   },
+   {
+    "epoch": 23,
+    "train_loss": 0.699045,
+    "val_macro_f1": 0.566203
+   },
+   {
+    "epoch": 24,
+    "train_loss": 0.609609,
+    "val_macro_f1": 0.611506
+   },
+   {
+    "epoch": 25,
+    "train_loss": 0.538368,
+    "val_macro_f1": 0.641975
+   },
+   {
+    "epoch": 26,
+    "train_loss": 0.471063,
+    "val_macro_f1": 0.590488
+   },
+   {
+    "epoch": 27,
+    "train_loss": 0.423227,
+    "val_macro_f1": 0.562577
+   },
+   {
+    "epoch": 28,
+    "train_loss": 0.37112,
+    "val_macro_f1": 0.59297
+   },
+   {
+    "epoch": 29,
+    "train_loss": 0.322972,
+    "val_macro_f1": 0.592485
+   },
+   {
+    "epoch": 30,
+    "train_loss": 0.279824,
+    "val_macro_f1": 0.612982
+   },
+   {
+    "epoch": 31,
+    "train_loss": 0.249965,
+    "val_macro_f1": 0.60126
+   },
+   {
+    "epoch": 32,
+    "train_loss": 0.210867,
+    "val_macro_f1": 0.60667
+   },
+   {
+    "epoch": 33,
+    "train_loss": 0.185522,
+    "val_macro_f1": 0.619423
+   },
+   {
+    "epoch": 34,
+    "train_loss": 0.156318,
+    "val_macro_f1": 0.618977
+   },
+   {
+    "epoch": 35,
+    "train_loss": 0.132544,
+    "val_macro_f1": 0.6282
+   },
+   {
+    "epoch": 36,
+    "train_loss": 0.118649,
+    "val_macro_f1": 0.601699
+   },
+   {
+    "epoch": 37,
+    "train_loss": 0.10392,
+    "val_macro_f1": 0.632008
+   },
+   {
+    "epoch": 38,
+    "train_loss": 0.09353,
+    "val_macro_f1": 0.641286
+   },
+   {
+    "epoch": 39,
+    "train_loss": 0.082907,
+    "val_macro_f1": 0.627807
+   },
+   {
+    "epoch": 40,
+    "train_loss": 0.077288,
+    "val_macro_f1": 0.624423
+   },
+   {
+    "epoch": 41,
+    "train_loss": 0.068036,
+    "val_macro_f1": 0.607504
+   },
+   {
+    "epoch": 42,
+    "train_loss": 0.062592,
+    "val_macro_f1": 0.607598
+   },
+   {
+    "epoch": 43,
+    "train_loss": 0.057672,
+    "val_macro_f1": 0.61213
+   },
+   {
+    "epoch": 44,
+    "train_loss": 0.052912,
+    "val_macro_f1": 0.623717
+   },
+   {
+    "epoch": 45,
+    "train_loss": 0.051115,
+    "val_macro_f1": 0.624554
+   }
+  ]
+ },
+ "metrics": {
+  "val": {
+   "macro_f1": 0.6419748769748769,
+   "accuracy": 0.6466666666666666,
+   "used_for_selection": true,
+   "n": 150
+  },
+  "val_full_diagnostic": {
+   "macro_f1": 0.5958898191348256,
+   "accuracy": 0.596830985915493,
+   "used_for_selection": false,
+   "n": 568
+  }
+ },
+ "gate": null,
+ "wall_clock_s": 0.88
+}

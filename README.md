@@ -15,11 +15,14 @@ python -m venv .venv
 .venv/Scripts/python scripts/leakage_dose.py       # results/tables/leakage_dose.md
 .venv/Scripts/python scripts/feature_report.py     # results/tables/feature_overview.md
 .venv/Scripts/python scripts/head_capacity.py      # results/tables/head_capacity.md
+.venv/Scripts/python scripts/cache_embeddings.py   # frozen XLM-R, once (~13 min on CPU); idempotent
 .venv/Scripts/python -m pytest tests/ -v
+.venv/Scripts/python scripts/smoke_test.py         # one sagff run -> results/smoke/
 ```
 
 `scripts/select_feature_dims.py` was run once (validation only) and its result is
 frozen in `configs/default.yaml`; it refuses to re-run without `--reselect`.
+The same holds for `scripts/select_lr.py` (learning rate, baseline head only).
 
 Each split directory `<track>/k<k>_seed<seed>/` holds `train.jsonl`, `val.jsonl`
 (k-matched; the only split used for model selection), `test.jsonl`,

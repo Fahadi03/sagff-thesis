@@ -6,13 +6,13 @@ by Macro-F1 on the run's k-matched validation split (§3.5). Test files are neve
 opened by this script.
 
 Grid: tfidf_dim in {256, 512, 1024} x chargram_dim in {512, 1024, 2048}
-Cells: bnintent30-bn and bnintent30-en, k in {5, full}, seeds {13, 42}
+Cells: bnintent30-bn and bnintent30-en, k in {5, full}, seeds {13, 42, 87, 100, 2026}
 
 Selection rule (smallest within one SD of the best):
   score(config, seed) = mean val Macro-F1 over the 4 (track, k) cells of that seed
-  mean(config)        = mean of score(config, seed) over the 2 seeds
+  mean(config)        = mean of score(config, seed) over the 5 seeds
   best                = config with the highest mean
-  sd                  = sample SD (ddof=1) of the best config's 2 seed-level scores
+  sd                  = sample SD (ddof=1) of the best config's 5 seed-level scores
   chosen              = among configs with mean >= mean(best) - sd, the one with the
                         smallest tfidf_dim + chargram_dim (ties: higher mean)
 Smallest-within-one-SD rather than best: at these sample sizes most differences
@@ -45,7 +45,7 @@ TFIDF_GRID = (256, 512, 1024)
 CHARGRAM_GRID = (512, 1024, 2048)
 TRACKS = ("bnintent30-bn", "bnintent30-en")
 KS = ("5", "full")
-SEEDS = (13, 42)
+SEEDS = (13, 42, 87, 100, 2026)  # all five R4 seeds (Task H; was 13, 42)
 CONFIG = ROOT / "configs" / "default.yaml"
 OUT = ROOT / "results" / "tables" / "feature_dim_selection.md"
 LR_PARAMS = {"C": 1.0, "max_iter": 5000, "solver": "lbfgs"}  # fixed, not tuned
@@ -136,7 +136,10 @@ def main() -> None:
             "method": "handcrafted branch alone (multinomial logistic regression on h_feat), "
                       "val Macro-F1",
             "grid": {"tfidf_dim": list(TFIDF_GRID), "chargram_dim": list(CHARGRAM_GRID)},
-            "cells": {"tracks": list(TRACKS), "k": list(KS), "seeds": list(SEEDS)},
+            "cells": {"tracks": list(TRACKS), "k": list(KS), "seeds": list(SEEDS),
+                      "n_seeds": len(SEEDS)},
+            "history": "first selection (2026-10-11) used seeds 13, 42 only and chose "
+                       "tfidf 256 / chargram 1024; re-run with all 5 seeds (Task H)",
             "rule": "smallest tfidf_dim + chargram_dim with mean >= best mean - SD(best over seeds)",
             "best": {"tfidf_dim": best[0], "chargram_dim": best[1], "mean_val_macro_f1": round(mean[best], 4)},
             "sd_best": round(sd, 4),

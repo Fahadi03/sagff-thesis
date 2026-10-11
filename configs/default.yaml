@@ -1,8 +1,8 @@
-# Shared configuration for all heads (CLAUDE.md §7). The `features` section
-# was selected on validation only and is FROZEN: do not edit by hand.
+# Shared configuration for all heads (CLAUDE.md §7). The `features` section and
+# training.lr were selected on validation only and are FROZEN: do not edit by hand.
 features:
   tfidf_dim: 256
-  chargram_dim: 1024
+  chargram_dim: 512
   stats_dim: 6
   selection:
     selected_on: k-matched VALIDATION splits only; test never opened
@@ -30,35 +30,99 @@ features:
       seeds:
       - 13
       - 42
+      - 87
+      - 100
+      - 2026
+      n_seeds: 5
+    history: first selection (2026-10-11) used seeds 13, 42 only and chose tfidf 256
+      / chargram 1024; re-run with all 5 seeds (Task H)
     rule: smallest tfidf_dim + chargram_dim with mean >= best mean - SD(best over
       seeds)
     best:
-      tfidf_dim: 1024
+      tfidf_dim: 256
       chargram_dim: 2048
-      mean_val_macro_f1: 0.7232
-    sd_best: 0.0074
-    chosen_mean_val_macro_f1: 0.721
+      mean_val_macro_f1: 0.71
+    sd_best: 0.0123
+    chosen_mean_val_macro_f1: 0.7055
 heads:
   order:
   - baseline
   - concat
   - sagff
+  - concat-cap
   - baseline-cap
   d_model: 768
-  feat_dim: 1286
-  baseline_cap_hidden: 1408
-  baseline_cap_matching: 'src.models.cap_hidden_for: parameter count matched to sagff
-    at 30 classes, H rounded to a multiple of 64; must stay within 20% of sagff'
+  feat_dim: 774
+  dropout: 0.1
+  gate_bias_init: 0.0
+  gate_bias_init_note: explicit constant for W_g's bias so g ~ 0.5 at init; W_g weights
+    keep PyTorch default init under the run seed
+  baseline_cap_hidden: 1152
+  concat_cap_hidden: 512
+  matching:
+    baseline-cap: parameter count within 20% of sagff (src.models, widths rounded
+      to a multiple of 64)
+    concat-cap: parameter count within 1% of sagff (src.models, widths rounded to
+      a multiple of 64)
   param_counts:
     baseline:
       30_classes: 24606
       77_classes: 60749
     concat:
-      30_classes: 1037598
-      77_classes: 1109837
+      30_classes: 644382
+      77_classes: 716621
     sagff:
-      30_classes: 2194974
-      77_classes: 2231117
+      30_classes: 1801758
+      77_classes: 1837901
+    concat-cap:
+      30_classes: 1803806
+      77_classes: 1839949
     baseline-cap:
-      30_classes: 2191006
-      77_classes: 2227149
+      30_classes: 1797534
+      77_classes: 1833677
+training:
+  optimizer: AdamW
+  lr: 0.003
+  weight_decay: 0.01
+  batch_size: 32
+  grad_clip: 1.0
+  max_epochs: 200
+  patience: 20
+  lr_schedule: constant
+  selection_metric: Macro-F1 on the k-matched validation split (val.jsonl)
+  loss: cross-entropy
+  threads: 6
+  tuning_note: identical for every head, condition, track and regime; no per-head
+    or per-regime tuning. lr selected once on validation with the baseline head only.
+  lr_selection:
+    selected_on: k-matched VALIDATION splits only; test never loaded
+    head: baseline ONLY; applied unchanged to every head and regime
+    date: '2026-10-11'
+    grid:
+    - 0.0003
+    - 0.001
+    - 0.003
+    rule: highest mean val Macro-F1 over all cells
+    cells:
+      tracks:
+      - bnintent30-bn
+      - bnintent30-en
+      - banking77
+      k:
+      - '5'
+      - '10'
+      - '20'
+      - full
+      seeds:
+      - 13
+      - 42
+      - 87
+      - 100
+      - 2026
+    mean_val_macro_f1:
+      '0.0003': 0.7722
+      '0.001': 0.7966
+      '0.003': 0.7997
+    script: scripts/select_lr.py
+    report: results/tables/lr_selection.md
+    runs: results/selection/lr/
