@@ -12,8 +12,14 @@ python -m venv .venv
 .venv/Scripts/python -m src.data                   # cleaning -> data/clean/, results/tables/data_cleaning.md
 .venv/Scripts/python scripts/make_splits.py        # data/splits/ (clean) and data/splits_dirty/ (leaky condition)
 .venv/Scripts/python scripts/verify_manifest.py    # exits non-zero on any sha256 mismatch
+.venv/Scripts/python scripts/leakage_dose.py       # results/tables/leakage_dose.md
+.venv/Scripts/python scripts/feature_report.py     # results/tables/feature_overview.md
+.venv/Scripts/python scripts/head_capacity.py      # results/tables/head_capacity.md
 .venv/Scripts/python -m pytest tests/ -v
 ```
+
+`scripts/select_feature_dims.py` was run once (validation only) and its result is
+frozen in `configs/default.yaml`; it refuses to re-run without `--reselect`.
 
 Each split directory `<track>/k<k>_seed<seed>/` holds `train.jsonl`, `val.jsonl`
 (k-matched; the only split used for model selection), `test.jsonl`,

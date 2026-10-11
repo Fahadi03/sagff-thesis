@@ -1,0 +1,64 @@
+# Shared configuration for all heads (CLAUDE.md §7). The `features` section
+# was selected on validation only and is FROZEN: do not edit by hand.
+features:
+  tfidf_dim: 256
+  chargram_dim: 1024
+  stats_dim: 6
+  selection:
+    selected_on: k-matched VALIDATION splits only; test never opened
+    date: '2026-10-11'
+    script: scripts/select_feature_dims.py
+    report: results/tables/feature_dim_selection.md
+    method: handcrafted branch alone (multinomial logistic regression on h_feat),
+      val Macro-F1
+    grid:
+      tfidf_dim:
+      - 256
+      - 512
+      - 1024
+      chargram_dim:
+      - 512
+      - 1024
+      - 2048
+    cells:
+      tracks:
+      - bnintent30-bn
+      - bnintent30-en
+      k:
+      - '5'
+      - full
+      seeds:
+      - 13
+      - 42
+    rule: smallest tfidf_dim + chargram_dim with mean >= best mean - SD(best over
+      seeds)
+    best:
+      tfidf_dim: 1024
+      chargram_dim: 2048
+      mean_val_macro_f1: 0.7232
+    sd_best: 0.0074
+    chosen_mean_val_macro_f1: 0.721
+heads:
+  order:
+  - baseline
+  - concat
+  - sagff
+  - baseline-cap
+  d_model: 768
+  feat_dim: 1286
+  baseline_cap_hidden: 1408
+  baseline_cap_matching: 'src.models.cap_hidden_for: parameter count matched to sagff
+    at 30 classes, H rounded to a multiple of 64; must stay within 20% of sagff'
+  param_counts:
+    baseline:
+      30_classes: 24606
+      77_classes: 60749
+    concat:
+      30_classes: 1037598
+      77_classes: 1109837
+    sagff:
+      30_classes: 2194974
+      77_classes: 2231117
+    baseline-cap:
+      30_classes: 2191006
+      77_classes: 2227149

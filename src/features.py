@@ -1,7 +1,7 @@
 """Handcrafted feature families (CLAUDE.md §4), fit per run on the TRAIN split only (R1).
 
-    tfidf      word TF-IDF, chi-squared selected to TFIDF_DIM columns
-    chargram   character 3/4/5-grams (within word boundaries), hashed to CHARGRAM_DIM
+    tfidf      word TF-IDF, chi-squared selected to tfidf_dim columns (configs/default.yaml)
+    chargram   character 3/4/5-grams (within word boundaries), hashed to chargram_dim (configs/default.yaml)
     stats      6 utterance statistics, standardized
 
 R1 is enforced by the class, not by convention:
@@ -13,15 +13,15 @@ R1 is enforced by the class, not by convention:
     test without writing the word "val"/"test" next to the call and seeing it fail.
 
 FIXED OUTPUT DIMENSION (identical for every k, track and seed, so W_p has one shape):
-  - tfidf:    chi2 keeps min(TFIDF_DIM, train vocabulary) terms; if the train
-              vocabulary is smaller than TFIDF_DIM (e.g. every k=5 split) the
-              block is ZERO-PADDED on the right to TFIDF_DIM. Padded columns are
-              always 0 and are logged as `tfidf_padded_columns`.
+  - tfidf:    chi2 keeps min(tfidf_dim, train vocabulary) terms; if the train
+              vocabulary is smaller than tfidf_dim the block is ZERO-PADDED on
+              the right to tfidf_dim. Padded columns are always 0 and are logged
+              as `tfidf_padded_columns`.
   - chargram: hashing has a fixed output size by construction.
   - stats:    always 6 columns.
-  TOTAL_DIM = TFIDF_DIM + CHARGRAM_DIM + 6. The dimensions are fixed constants,
-  chosen once from the measured k=5..full vocabulary range (335-2,220 words),
-  not tuned on any result.
+  total = tfidf_dim + chargram_dim + 6. tfidf_dim and chargram_dim come from
+  configs/default.yaml, where they were selected ONCE on k-matched validation
+  data only (scripts/select_feature_dims.py) and then frozen.
 
 NORMALIZATION APPLIED BY EACH FAMILY, compared with the dedup key (src.data.norm_key:
 NFC, lowercase, punctuation -> space, whitespace collapsed). No family may be
@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import hashlib
 import unicodedata
+from pathlib import Path
 
 import numpy as np
 import scipy.sparse as sp
@@ -54,13 +55,19 @@ from sklearn.preprocessing import StandardScaler, normalize
 
 from src.data import norm_key
 
-TFIDF_DIM = 1000
-CHARGRAM_DIM = 2 ** 12  # 4096
+ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_CONFIG = ROOT / "configs" / "default.yaml"
 CHARGRAM_NGRAMS = (3, 5)
 STATS_NAMES = ("token_count", "char_count", "mean_token_length",
                "digit_ratio", "punctuation_ratio", "uppercase_ratio")
 STATS_DIM = len(STATS_NAMES)
-TOTAL_DIM = TFIDF_DIM + CHARGRAM_DIM + STATS_DIM
+
+
+def load_feature_dims(path: Path = DEFAULT_CONFIG) -> dict:
+    """The frozen, validation-selected dimensions from configs/default.yaml."""
+    import yaml
+    cfg = yaml.safe_load(path.read_text(encoding="utf-8"))["features"]
+    return {"tfidf_dim": int(cfg["tfidf_dim"]), "chargram_dim": int(cfg["chargram_dim"])}
 
 NORMALIZATION = {
     "tfidf": "norm_key(text).split(): NFC, lowercase, punctuation -> space, whitespace "
@@ -110,7 +117,13 @@ def _fingerprint(texts: list[str]) -> str:
 class HandcraftedFeatures:
     """The three §4 families. One instance per run: fit once on train, transform anything."""
 
-    def __init__(self) -> None:
+    def __init__(self, tfidf_dim: int | None = None, chargram_dim: int | None = None) -> None:
+        if tfidf_dim is None or chargram_dim is None:
+            dims = load_feature_dims()
+            tfidf_dim = dims["tfidf_dim"] if tfidf_dim is None else tfidf_dim
+            chargram_dim = dims["chargram_dim"] if chargram_dim is None else chargram_dim
+        self.tfidf_dim, self.chargram_dim = int(tfidf_dim), int(chargram_dim)
+        self.total_dim = self.tfidf_dim + self.chargram_dim + STATS_DIM
         self._fitted = False
         self.n_fits = 0
         self.transform_log: dict[str, dict] = {}
@@ -136,21 +149,24 @@ class HandcraftedFeatures:
         self._tfidf = TfidfVectorizer(analyzer=word_tokens, min_df=1, norm=None)
         counts = self._tfidf.fit_transform(train_texts)
         self.tfidf_vocab_size = counts.shape[1]
-        self.tfidf_selected = min(TFIDF_DIM, self.tfidf_vocab_size)
+        self.tfidf_selected = min(self.tfidf_dim, self.tfidf_vocab_size)
         self._chi2 = SelectKBest(chi2, k=self.tfidf_selected).fit(counts, train_labels)
-        self.tfidf_padded_columns = TFIDF_DIM - self.tfidf_selected
+        self.tfidf_padded_columns = self.tfidf_dim - self.tfidf_selected
         self.tfidf_unselected_terms = self.tfidf_vocab_size - self.tfidf_selected
         vocab = self._tfidf.get_feature_names_out()
         self.selected_terms = vocab[self._chi2.get_support()]
 
         # chargram: hashing is stateless; the idf weighting is learned from train.
         self._hasher = HashingVectorizer(analyzer="char_wb", ngram_range=CHARGRAM_NGRAMS,
-                                         n_features=CHARGRAM_DIM, alternate_sign=False,
+                                         n_features=self.chargram_dim, alternate_sign=False,
                                          norm=None, preprocessor=nfc_lower)
         self._char_idf = TfidfTransformer(sublinear_tf=True).fit(self._hasher.transform(train_texts))
 
-        # stats: scaler learned from train.
+        # stats: scaler learned from train. A column that is constant on train
+        # (uppercase_ratio for Bangla, which has no case) is DEGENERATE: the scaler
+        # maps it to 0 everywhere. It is kept and logged, not dropped (§4).
         self._scaler = StandardScaler().fit(np.array([utterance_stats(t) for t in train_texts]))
+        self.degenerate_stats = [n for n, v in zip(STATS_NAMES, self._scaler.var_) if v == 0]
 
         self.train_size = len(train_texts)
         self.train_fingerprint = _fingerprint(train_texts)
@@ -160,7 +176,7 @@ class HandcraftedFeatures:
 
     # ------------------------------------------------------------ transform
     def transform(self, texts: list[str], *, split: str | None = None) -> sp.csr_matrix:
-        """Apply the train-fitted components unchanged. Returns (n, TOTAL_DIM) float32 CSR.
+        """Apply the train-fitted components unchanged. Returns (n, total_dim) float32 CSR.
         `split` only labels the log entry."""
         if not self._fitted:
             raise FeaturesNotFittedError("HandcraftedFeatures.transform() called before fit() (R1).")
@@ -171,7 +187,7 @@ class HandcraftedFeatures:
         chars = self._char_idf.transform(self._hasher.transform(texts))
         stats = sp.csr_matrix(self._scaler.transform(np.array([utterance_stats(t) for t in texts])))
         X = sp.hstack([tfidf, chars, stats], format="csr", dtype=np.float32)
-        assert X.shape[1] == TOTAL_DIM, f"feature dimension {X.shape[1]} != fixed {TOTAL_DIM}"
+        assert X.shape[1] == self.total_dim, f"feature dimension {X.shape[1]} != fixed {self.total_dim}"
 
         if split is not None:
             self.transform_log[split] = {
@@ -188,14 +204,15 @@ class HandcraftedFeatures:
         if not self._fitted:
             raise FeaturesNotFittedError("report() called before fit().")
         return {
-            "dims": {"tfidf": TFIDF_DIM, "chargram": CHARGRAM_DIM, "stats": STATS_DIM,
-                     "total": TOTAL_DIM},
+            "dims": {"tfidf": self.tfidf_dim, "chargram": self.chargram_dim, "stats": STATS_DIM,
+                     "total": self.total_dim},
             "tfidf_vocab_size": int(self.tfidf_vocab_size),
             "tfidf_selected": int(self.tfidf_selected),
             "tfidf_padded_columns": int(self.tfidf_padded_columns),
             "tfidf_unselected_terms": int(self.tfidf_unselected_terms),
             "chargram_ngrams": list(CHARGRAM_NGRAMS),
             "stats_names": list(STATS_NAMES),
+            "degenerate_stats": list(self.degenerate_stats),
             "normalization": NORMALIZATION,
             "fit": {"split": "train", "n": self.train_size,
                     "texts_sha256": self.train_fingerprint, "n_fits": self.n_fits},
@@ -204,11 +221,13 @@ class HandcraftedFeatures:
         }
 
 
-def featurize_run(splits: dict[str, list[dict]]) -> tuple[HandcraftedFeatures, dict]:
+def featurize_run(splits: dict[str, list[dict]], dims: dict | None = None
+                  ) -> tuple[HandcraftedFeatures, dict]:
     """The ONLY way a run should build features: fit one fresh instance on
     splits["train"], then transform every split (train included) with that same
-    object. Returns (fitted pipeline, {split name: matrix})."""
-    pipeline = HandcraftedFeatures().fit([r["text"] for r in splits["train"]],
+    object. Returns (fitted pipeline, {split name: matrix}). `dims` overrides the
+    frozen config dimensions; only scripts/select_feature_dims.py may pass it."""
+    pipeline = HandcraftedFeatures(**(dims or {})).fit([r["text"] for r in splits["train"]],
                                          [r["label_id"] for r in splits["train"]], split="train")
     X = {name: pipeline.transform([r["text"] for r in rows], split=name)
          for name, rows in splits.items()}

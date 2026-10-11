@@ -9,8 +9,8 @@ The two BNIntent30 tracks are built from ONE shared cleaned row set (R9), so
 they contain the same uids, labels and split assignment; only the text differs.
 
 Every "same text" decision in this repository - cleaning, the BANKING77 val
-carve, and the tests - goes through `norm_key` below. Nothing computes its own
-variant. Stored text is never edited.
+carve, the leakage-dose table and the tests - goes through `dedup_key` below.
+Nothing computes its own variant. Stored text is never edited.
 
 Usage:  python -m src.data      # writes data/clean/ and results/tables/data_cleaning.md
 """
@@ -43,17 +43,18 @@ B77_FIELDS = {"en": "text"}
 # BANKING77 has no official val split. 1/6 of each class's (cleaned) training
 # rows becomes val, matching BNIntent30's 100:20 train:val ratio (R3). The carve
 # is fixed for all k and seeds, like BNIntent30's official val, and group-aware
-# by norm_key so it cannot itself create train/val overlap. It runs AFTER
+# by dedup_key so it cannot itself create train/val overlap. It runs AFTER
 # cleaning steps 2-4, so val is exactly 1/6 of clean rows.
 B77_VAL_FRACTION = 1 / 6
 B77_VAL_SALT = "banking77-val-carve-v1"
 
 
 # --------------------------------------------------------------------------- #
-# The comparison key (§3.3). The ONLY text-equality function in the repo.
+# Text normalization and the deduplication key (§3.3).
 # --------------------------------------------------------------------------- #
 def norm_key(s: str) -> str:
-    """NFC, lowercased, every Unicode punctuation character (category P*:
+    """Token-level normalization shared by the dedup key and the TF-IDF tokenizer:
+    NFC, lowercased, every Unicode punctuation character (category P*:
     ? . ! , ; : ' " ( ) - and the Bangla danda U+0964 / double danda U+0965 ...)
     replaced by a space, whitespace collapsed.
 
@@ -64,6 +65,24 @@ def norm_key(s: str) -> str:
     s = unicodedata.normalize("NFC", s).lower()
     s = "".join(" " if unicodedata.category(ch).startswith("P") else ch for ch in s)
     return " ".join(s.split())
+
+
+def dedup_key(s: str) -> str:
+    """THE deduplication key (§3.3): the sorted multiset of normalized tokens.
+
+    It is the coarsest equivalence induced by any model component. All three
+    handcrafted families are word-order-insensitive (TF-IDF is a bag of words,
+    char_wb n-grams never cross word boundaries, the statistics are counts), so
+    two utterances that differ only in word order are one input to that branch.
+    The token multiset is used instead of the feature vector because the vector
+    depends on a fitted vocabulary, hence on the split, hence on deduplication;
+    the multiset induces the same classes and is split-independent.
+    The frozen encoder IS order-sensitive, so this is stricter than the encoder
+    alone needs: conservative in the safe direction (evaluation only gets harder).
+
+    This is the ONLY function that decides whether two texts are "the same".
+    """
+    return " ".join(sorted(norm_key(s).split()))
 
 
 def exact_key(s: str) -> str:
@@ -79,11 +98,12 @@ def byte_key(s: str) -> str:
     return s
 
 
-# The three comparison-key levels reported side by side (Task B). Only the last
-# one is ever used to decide anything.
+# The comparison-key levels reported side by side, coarsening left to right.
+# Only the last one is ever used to decide anything.
 REPORT_KEYS = (("byte-for-byte exact", byte_key),
                ("whitespace-collapsed exact", exact_key),
-               ("normalized (norm_key, applied)", norm_key))
+               ("normalized, order-sensitive", norm_key),
+               ("normalized token multiset (dedup_key, applied)", dedup_key))
 
 
 def hash_key(*parts: str) -> str:
@@ -127,7 +147,7 @@ def load_banking77_raw(raw_dir: Path = RAW / "banking77") -> list[dict]:
 # function, and returns (kept rows, {uid: set of languages that triggered the drop}).
 # Union over languages (R9) is built in: a row goes if ANY language flags it.
 # --------------------------------------------------------------------------- #
-def step2_conflicts(rows, fields, key=norm_key):
+def step2_conflicts(rows, fields, key=dedup_key):
     labels = {lang: defaultdict(set) for lang in fields}
     for r in rows:
         for lang, f in fields.items():
@@ -140,7 +160,7 @@ def step2_conflicts(rows, fields, key=norm_key):
     return [r for r in rows if r["uid"] not in dropped], dropped
 
 
-def step3_cross_split(rows, fields, key=norm_key):
+def step3_cross_split(rows, fields, key=dedup_key):
     """Greedy in (split priority, uid) order: a row is dropped iff one of its
     keys is already held by a KEPT row of a higher-priority split. Testing
     against kept rows (not all rows) means a row is never dropped because of a
@@ -159,7 +179,7 @@ def step3_cross_split(rows, fields, key=norm_key):
     return sorted(kept, key=lambda r: r["uid"]), dropped
 
 
-def step4_within_split(rows, fields, key=norm_key):
+def step4_within_split(rows, fields, key=dedup_key):
     """Greedy in uid order within each split: keep the lowest uid of each key."""
     held = {lang: set() for lang in fields}  # (split, key) of kept rows
     kept, dropped = [], {}
@@ -202,11 +222,11 @@ def _trigger_counts(dropped: dict, fields) -> dict:
 
 
 def apply_steps_2_to_4(rows, fields) -> tuple[list[dict], list[dict]]:
-    """Run steps 2-4 with norm_key, recording for each step the same step run
+    """Run steps 2-4 with dedup_key, recording for each step the same step run
     with exact_key on the same input (counterfactual, for the report only)."""
     records = []
     for num, name, fn in STEPS:
-        kept, dropped = fn(rows, fields, norm_key)
+        kept, dropped = fn(rows, fields, dedup_key)
         _, dropped_exact = fn(rows, fields, exact_key)
         records.append({
             "step": num, "name": name, "_input": rows, "_fn": fn,
@@ -258,12 +278,12 @@ def clean_banking77(rows: list[dict]) -> tuple[list[dict], dict]:
 
 
 def carve_banking77_val(rows: list[dict]) -> list[dict]:
-    """Move round(n_c / 6) training rows per class into val, group-aware by norm_key."""
+    """Move round(n_c / 6) training rows per class into val, group-aware by dedup_key."""
     out = [dict(r) for r in rows]
     train_by_class = defaultdict(lambda: defaultdict(list))
     for r in out:
         if r["split"] == "train":
-            train_by_class[r["intent"]][norm_key(r["text"])].append(r)
+            train_by_class[r["intent"]][dedup_key(r["text"])].append(r)
     for groups in train_by_class.values():
         target = round(sum(len(g) for g in groups.values()) * B77_VAL_FRACTION)
         ordered = sorted(groups.values(),
@@ -352,8 +372,8 @@ def _fmt(c: dict, splits=SPLITS) -> str:
 
 
 def _step_table(rep: dict, langs: str) -> list[str]:
-    L = [_row(["Step", "Rule", "split", "removed (normalized key, applied)",
-               "would be removed under exact key", f"triggered by {langs}"]),
+    L = [_row(["Step", "Rule", "split", "removed (dedup_key, applied)",
+               "would be removed under whitespace-collapsed exact key", f"triggered by {langs}"]),
          _row(["---"] * 6)]
     for s in rep["steps"]:
         bl = s["by_language"]
@@ -464,11 +484,13 @@ def write_report(tracks: dict, rep: dict, data_cfg: dict | None = None) -> str:
               f"`{data_cfg['bnintent30']['commit']}`",
               f"- BANKING77 source: `{data_cfg['banking77']['repo']}` @ "
               f"`{data_cfg['banking77']['commit']}`", ""]
-    L += ["**Comparison key** (`src.data.norm_key`, used by every decision): Unicode NFC, "
-          "lowercased, every punctuation character (Unicode category P, incl. the Bangla danda) "
-          "replaced by a space, whitespace collapsed. The \"exact key\" column re-runs the same "
-          "step on the same input with the exact string (whitespace collapsed only, the Stage 1 "
-          "key) as key; it is reported for comparison only and decides nothing.", "",
+    L += ["**Deduplication key** (`src.data.dedup_key`, used by every decision): the sorted "
+          "multiset of normalized tokens. Tokens come from `norm_key`: Unicode NFC, lowercased, "
+          "every punctuation character (Unicode category P, incl. the Bangla danda) replaced by a "
+          "space, whitespace collapsed. Sorting makes the key word-order-insensitive, because all "
+          "three handcrafted feature families are (CLAUDE.md §3.3). The \"exact key\" column "
+          "re-runs the same step on the same input with the exact string (whitespace collapsed "
+          "only, the Stage 1 key); it is reported for comparison only and decides nothing.", "",
           "Steps 2-4 are applied at row level to the union of problems found in either language "
           "(R9), so `bnintent30-en` and `bnintent30-bn` share one cleaned row set. Steps 3 and 4 "
           "are greedy in a fixed order (step 3: test, val, train, then uid; step 4: uid), and a row "
@@ -500,7 +522,7 @@ def write_report(tracks: dict, rep: dict, data_cfg: dict | None = None) -> str:
     L += ["",
           f"- After steps 2-4: {bc['train']:,} train / {bc['test']:,} test.",
           f"- Val carve (after cleaning): fraction {B77_VAL_FRACTION:.4f} (1/6) per class, "
-          f"group-aware by norm_key -> {b7['final']['train']:,} train / {b7['final']['val']:,} "
+          f"group-aware by dedup_key -> {b7['final']['train']:,} train / {b7['final']['val']:,} "
           f"val / {b7['final']['test']:,} test; val per class min {min(vals.values())}, "
           f"max {max(vals.values())}.", "",
           "## BANKING77: per-class counts", "",
@@ -508,14 +530,16 @@ def write_report(tracks: dict, rep: dict, data_cfg: dict | None = None) -> str:
           "cleaning and moves rows, it removes none.", ""]
     L += _b77_per_class_table(rep["b77_raw"], rep["b77_clean"])
 
-    L += ["", "## Duplicate counts under three comparison-key levels", "",
+    L += ["", "## Duplicate counts under four comparison-key levels", "",
           "Rows that step 3 (cross-split) and step 4 (within-split) would remove, as total "
-          "(train/val/test). Key 1 = byte-for-byte identical string (`byte_key`); key 2 = "
-          "identical after collapsing whitespace only (`exact_key`, the Stage 1 key); key 3 = "
-          "the normalized key that is actually applied (`norm_key`: NFC, lowercase, punctuation "
-          "-> space, whitespace collapsed). Each row uses ONE track's text only, on exactly the "
-          "input the applied step received, so the BNIntent30 rows differ from the applied "
-          "union in the step tables above. Keys 1 and 2 decide nothing.", ""]
+          "(train/val/test). Keys coarsen left to right. Key 1 = byte-for-byte identical string "
+          "(`byte_key`); key 2 = identical after collapsing whitespace only (`exact_key`, the "
+          "Stage 1 key); key 3 = identical normalized token SEQUENCE (`norm_key`: NFC, lowercase, "
+          "punctuation -> space, whitespace collapsed; the Stage 1b key); key 4 = identical "
+          "normalized token MULTISET (`dedup_key`, the key actually applied). Each row uses ONE "
+          "track's text only, on exactly the input the applied step received, so the BNIntent30 "
+          "rows differ from the applied union in the step tables above. Keys 1-3 decide nothing.",
+          ""]
     L += _key_level_table(rep)
     L += [""] + _test_removal_note(tracks, rep)
     L += ["## Smallest training classes after cleaning", "",

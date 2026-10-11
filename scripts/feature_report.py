@@ -1,15 +1,17 @@
-"""Feature overview for the parallel tracks (Stage 2) -> results/tables/feature_overview.md
+"""Feature overview for the parallel tracks -> results/tables/feature_overview.md
 
-For bnintent30-bn and bnintent30-en at (k=5, seed=13) and (k=full, seed=13):
-dimension per family, total dimension, sparsity, OOV rate of test word tokens
-against the train-fit TF-IDF vocabulary, empty TF-IDF rows, and a collision
-check: test rows whose full feature vector equals a train row's although their
-normalized keys differ (would mean a family is effectively more aggressive than
-the dedup key).
+For bnintent30-bn and bnintent30-en at k=5 and k=full, over ALL five seeds
+(mean and min-max; no single-seed figure is ever reported): dimension per
+family, total dimension, sparsity, OOV rate of test word tokens against the
+train-fit TF-IDF vocabulary, all-zero TF-IDF test rows, degenerate statistics,
+and a collision check: test rows whose full feature vector equals a train row's
+although their dedup keys differ (would mean a family is effectively more
+aggressive than the dedup key).
 
 Usage:  python scripts/feature_report.py
 """
 import json
+import statistics
 import sys
 from pathlib import Path
 
@@ -18,11 +20,12 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.data import norm_key  # noqa: E402
-from src.features import (CHARGRAM_DIM, STATS_DIM, TFIDF_DIM, TOTAL_DIM,  # noqa: E402
-                          featurize_run, word_tokens)
+from src.data import dedup_key  # noqa: E402
+from src.features import featurize_run, word_tokens  # noqa: E402
 
-CASES = [(t, k, 13) for t in ("bnintent30-bn", "bnintent30-en") for k in ("5", "full")]
+TRACKS = ("bnintent30-bn", "bnintent30-en")
+KS = ("5", "full")
+SEEDS = (13, 42, 87, 100, 2026)
 OUT = ROOT / "results" / "tables" / "feature_overview.md"
 
 
@@ -43,48 +46,61 @@ def row_signatures(M) -> list[bytes]:
             + np.round(M.data[M.indptr[i]:M.indptr[i + 1]], 6).tobytes() for i in range(M.shape[0])]
 
 
-def main() -> None:
-    rows = []
-    for track, k, seed in CASES:
-        splits = load(track, k, seed)
-        pipe, X = featurize_run(splits)
-        rep = pipe.report()
-        vocab = set(pipe._tfidf.vocabulary_)
-        selected = set(pipe.selected_terms)
-        test_tokens = [t for r in splits["test"] for t in word_tokens(r["text"])]
-        train_sig = {}
-        for r, sig in zip(splits["train"], row_signatures(X["train"])):
-            train_sig.setdefault(sig, set()).add(norm_key(r["text"]))
-        collisions = sum(1 for r, sig in zip(splits["test"], row_signatures(X["test"]))
-                         if sig in train_sig and norm_key(r["text"]) not in train_sig[sig])
-        rows.append({
-            "case": f"{track} k={k} seed={seed}",
-            "n_train": len(splits["train"]), "n_test": len(splits["test"]),
-            "tfidf": f"{TFIDF_DIM} ({rep['tfidf_selected']} terms + {rep['tfidf_padded_columns']} pad)",
+def measure(track, k, seed) -> dict:
+    splits = load(track, k, seed)
+    pipe, X = featurize_run(splits)
+    rep = pipe.report()
+    vocab, selected = set(pipe._tfidf.vocabulary_), set(pipe.selected_terms)
+    toks = [t for r in splits["test"] for t in word_tokens(r["text"])]
+    train_sig = {}
+    for r, sig in zip(splits["train"], row_signatures(X["train"])):
+        train_sig.setdefault(sig, set()).add(dedup_key(r["text"]))
+    collisions = sum(1 for r, sig in zip(splits["test"], row_signatures(X["test"]))
+                     if sig in train_sig and dedup_key(r["text"]) not in train_sig[sig])
+    return {"rep": rep, "n_train": len(splits["train"]), "n_test": len(splits["test"]),
+            "selected": rep["tfidf_selected"], "pad": rep["tfidf_padded_columns"],
             "vocab": rep["tfidf_vocab_size"],
-            "chargram": CHARGRAM_DIM, "stats": STATS_DIM, "total": TOTAL_DIM,
-            "sp_train": f"{100 * sparsity(X['train']):.2f}%", "sp_test": f"{100 * sparsity(X['test']):.2f}%",
-            "oov_vocab": f"{100 * sum(t not in vocab for t in test_tokens) / len(test_tokens):.1f}%",
-            "oov_selected": f"{100 * sum(t not in selected for t in test_tokens) / len(test_tokens):.1f}%",
+            "sp_train": 100 * sparsity(X["train"]), "sp_test": 100 * sparsity(X["test"]),
+            "oov_vocab": 100 * sum(t not in vocab for t in toks) / len(toks),
+            "oov_selected": 100 * sum(t not in selected for t in toks) / len(toks),
             "tfidf_empty": rep["transform_log"]["test"]["tfidf_empty_rows"],
             "char_empty": rep["transform_log"]["test"]["chargram_empty_rows"],
-            "collisions": collisions,
-        })
-    head = ["case", "train / test rows", "tfidf dim (selected + pad)", "train vocab", "chargram dim",
-            "stats dim", "total dim", "sparsity train", "sparsity test",
-            "test-token OOV vs train vocab", "test-token OOV vs selected terms",
-            "test rows with empty tfidf", "test rows with empty chargram",
-            "test rows colliding with a train row of a different key"]
+            "collisions": collisions, "degenerate": ",".join(rep["degenerate_stats"]) or "none"}
+
+
+def agg(vals, fmt="{:.1f}") -> str:
+    lo, hi, mu = min(vals), max(vals), statistics.mean(vals)
+    return fmt.format(mu) if lo == hi else f"{fmt.format(mu)} ({fmt.format(lo)}-{fmt.format(hi)})"
+
+
+def main() -> None:
+    head = ["track, k", "train / test rows", "tfidf dim: selected terms + pad", "train vocab",
+            "chargram dim", "stats dim", "total dim", "sparsity train %", "sparsity test %",
+            "test-token OOV vs train vocab %", "OOV vs selected terms %",
+            "all-zero tfidf test rows", "all-zero chargram test rows", "degenerate stats",
+            "test rows colliding with a train row of a different dedup key"]
     L = ["# Feature overview", "", "Generated by `python scripts/feature_report.py`. Do not edit by hand.",
-         "", "Sparsity = share of zero entries in the full feature matrix. OOV = share of test word "
-         "tokens (`word_tokens`, i.e. `norm_key(text).split()`) absent from the train-fit vocabulary "
-         "(before chi2) or from the chi2-selected terms.", "",
+         "", f"Every cell is the mean (min-max) over seeds {list(SEEDS)}; a single value means all "
+         "seeds agree. Sparsity = share of zero entries in the full feature matrix. OOV = share of "
+         "test word tokens (`word_tokens` = `norm_key(text).split()`) absent from the train-fit "
+         "vocabulary (before chi2) or from the chi2-selected terms. All-zero TF-IDF rows are test "
+         "items for which the TF-IDF family carries no information at all.", "",
          "| " + " | ".join(head) + " |", "|" + " --- |" * len(head)]
-    for r in rows:
-        L.append("| " + " | ".join(str(x) for x in [
-            r["case"], f"{r['n_train']} / {r['n_test']}", r["tfidf"], r["vocab"], r["chargram"],
-            r["stats"], r["total"], r["sp_train"], r["sp_test"], r["oov_vocab"], r["oov_selected"],
-            r["tfidf_empty"], r["char_empty"], r["collisions"]]) + " |")
+    for track in TRACKS:
+        for k in KS:
+            m = [measure(track, k, s) for s in SEEDS]
+            dims = m[0]["rep"]["dims"]
+            L.append("| " + " | ".join([
+                f"{track} k={k}", f"{agg([x['n_train'] for x in m], '{:.0f}')} / {m[0]['n_test']}",
+                f"{dims['tfidf']}: {agg([x['selected'] for x in m], '{:.0f}')} + "
+                f"{agg([x['pad'] for x in m], '{:.0f}')}",
+                agg([x["vocab"] for x in m], "{:.0f}"), str(dims["chargram"]), str(dims["stats"]),
+                str(dims["total"]),
+                agg([x["sp_train"] for x in m], "{:.2f}"), agg([x["sp_test"] for x in m], "{:.2f}"),
+                agg([x["oov_vocab"] for x in m]), agg([x["oov_selected"] for x in m]),
+                agg([x["tfidf_empty"] for x in m]), agg([x["char_empty"] for x in m]),
+                "; ".join(sorted({x["degenerate"] for x in m})),
+                agg([x["collisions"] for x in m])]) + " |")
     OUT.write_bytes(("\n".join(L) + "\n").encode("utf-8"))
     print("\n".join(L))
 

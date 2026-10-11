@@ -1,6 +1,6 @@
 """R1/R3/R5/§3.5 enforcement (CLAUDE.md §8). Must pass before any grid run.
 
-Every text comparison uses src.data.norm_key, the single comparison key (§3.3)."""
+Every text comparison uses src.data.dedup_key, the single deduplication key (§3.3)."""
 import hashlib
 from collections import Counter, defaultdict
 from itertools import combinations
@@ -8,7 +8,7 @@ from itertools import combinations
 import pytest
 
 from conftest import DIRTY_DIR, FILES, SPLITS_DIR, check
-from src.data import TRACKS, norm_key
+from src.data import TRACKS, dedup_key
 
 KS_ORDER = ("5", "10", "20", "full")
 
@@ -19,7 +19,7 @@ def test_vectorizer_indices_within_train_vocabulary(track, split_files):
     """A pipeline fit on train, applied to val/test, never produces a TF-IDF column outside
     the train-fit (selected) vocabulary; padding columns stay zero; the vocabulary does
     not grow at transform time; every split has the fixed total dimension."""
-    from src.features import TFIDF_DIM, TOTAL_DIM, featurize_run
+    from src.features import featurize_run
     problems = []
     for (t, k, seed), files in split_files.items():
         if t != track:
@@ -33,9 +33,9 @@ def test_vectorizer_indices_within_train_vocabulary(track, split_files):
         vocab_before = len(pipeline._tfidf.vocabulary_)
         n_sel = pipeline.tfidf_selected
         for name, M in X.items():
-            if M.shape[1] != TOTAL_DIM:
-                problems.append(f"k={k} seed={seed} {name}: dim {M.shape[1]} != {TOTAL_DIM}")
-            cols = M[:, :TFIDF_DIM].tocoo().col
+            if M.shape[1] != pipeline.total_dim:
+                problems.append(f"k={k} seed={seed} {name}: dim {M.shape[1]} != {pipeline.total_dim}")
+            cols = M[:, :pipeline.tfidf_dim].tocoo().col
             if cols.size and cols.max() >= n_sel:
                 problems.append(f"k={k} seed={seed} {name}: TF-IDF column {cols.max()} >= "
                                 f"train-fit vocabulary size {n_sel}")
@@ -67,14 +67,14 @@ def test_splits_disjoint_by_normalized_key(track, split_files):
     for (t, k, seed), files in split_files.items():
         if t != track:
             continue
-        keys = {f: {norm_key(r["text"]): r["uid"] for r in rows} for f, rows in files.items()}
+        keys = {f: {dedup_key(r["text"]): r["uid"] for r in rows} for f, rows in files.items()}
         for a, b in combinations(FILES, 2):
             if {a, b} == {"val", "val_full"}:
                 continue
             for key in sorted(keys[a].keys() & keys[b].keys()):
                 problems.append(f"k={k} seed={seed}: {a} uid {keys[a][key]} and {b} uid "
-                                f"{keys[b][key]} share the normalized key {key!r}")
-    check(problems, f"[{track}] normalized-key overlap between splits")
+                                f"{keys[b][key]} share the dedup key {key!r}")
+    check(problems, f"[{track}] dedup-key overlap between splits")
 
 
 # 2b ------------------------------------------------------------------------ #
@@ -88,10 +88,10 @@ def test_no_normalized_key_twice_within_a_split(track, split_files):
         for f, rows in files.items():
             seen = defaultdict(list)
             for r in rows:
-                seen[norm_key(r["text"])].append(r["uid"])
+                seen[dedup_key(r["text"])].append(r["uid"])
             problems += [f"k={k} seed={seed} {f}: key {key!r} on uids {uids}"
                          for key, uids in seen.items() if len(uids) > 1]
-    check(problems, f"[{track}] duplicate normalized keys inside a split")
+    check(problems, f"[{track}] duplicate dedup keys inside a split")
 
 
 # 3 ------------------------------------------------------------------------- #
