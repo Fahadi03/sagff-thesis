@@ -1,9 +1,12 @@
 # --- Data: BNIntent30 has no license (CLAUDE.md §3.4). No text, raw or cleaned,
-# is ever committed. Only the split manifest (uids + sha256) is tracked.
+# is ever committed. Only the split manifests (uids + sha256) are tracked.
 data/*
 !data/splits/
 data/splits/*
 !data/splits/manifest.json
+!data/splits_dirty/
+data/splits_dirty/*
+!data/splits_dirty/manifest.json
 
 # --- Environment / tooling
 .venv/

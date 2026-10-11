@@ -1,5 +1,5 @@
 """R9 enforcement: bnintent30-en and bnintent30-bn contain IDENTICAL rows."""
-from conftest import check
+from conftest import FILES, check
 
 EN, BN = "bnintent30-en", "bnintent30-bn"
 
@@ -14,6 +14,8 @@ def test_same_label_names(manifest):
 
 
 def test_identical_uids_order_and_labels_for_every_k_seed(split_files, manifest):
+    """For every (k, seed) and every split file - train AND k-matched val included -
+    the two tracks hold the same uid set, in the same order, with the same labels."""
     problems = []
     combos = sorted({(k, s) for (t, k, s) in split_files if t == BN})
     expected = len(manifest["ks"]) * len(manifest["seeds"])
@@ -23,13 +25,16 @@ def test_identical_uids_order_and_labels_for_every_k_seed(split_files, manifest)
         if (EN, k, seed) not in split_files:
             problems.append(f"k={k} seed={seed}: missing for {EN}")
             continue
-        for s in ("train", "val", "test"):
-            en, bn = split_files[(EN, k, seed)][s], split_files[(BN, k, seed)][s]
-            if [r["uid"] for r in en] != [r["uid"] for r in bn]:
-                problems.append(f"k={k} seed={seed} {s}: uid lists differ "
-                                f"({len(en)} en rows vs {len(bn)} bn rows)")
+        for f in FILES:
+            en, bn = split_files[(EN, k, seed)][f], split_files[(BN, k, seed)][f]
+            en_uids, bn_uids = [r["uid"] for r in en], [r["uid"] for r in bn]
+            if set(en_uids) != set(bn_uids):
+                problems.append(f"k={k} seed={seed} {f}: uid SETS differ "
+                                f"({len(set(en_uids) ^ set(bn_uids))} uids in only one track)")
+            elif en_uids != bn_uids:
+                problems.append(f"k={k} seed={seed} {f}: same uid set, different ORDER")
             elif [r["label_id"] for r in en] != [r["label_id"] for r in bn]:
-                problems.append(f"k={k} seed={seed} {s}: same uids but different labels")
+                problems.append(f"k={k} seed={seed} {f}: same uids but different labels")
     check(problems, "R9 violated: English and Bangla tracks diverge")
 
 

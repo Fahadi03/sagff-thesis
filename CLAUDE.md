@@ -91,6 +91,22 @@ Reproduction = run the download script, run `make_splits.py`, verify every
 sha256 against the manifest. `scripts/verify_manifest.py` must do this check and
 exit non-zero on any mismatch.
 
+R3 also fixes, as requirements rather than implementation details:
+- **Nested k-sets.** For a given (track, seed), the k=5 train set is a subset of
+  the k=10 set, which is a subset of k=20, which is a subset of full. Validation
+  sets nest identically (3.5). This makes training-set SIZE the only quantity
+  that varies along the x-axis of the paper's main figure; with independent
+  resamples per k, a change in the gate could equally be explained by having
+  drawn different examples.
+- **Deterministic sampling without an RNG.** Selection ranks sha256(seed, uid),
+  not any random-number library, so a library upgrade cannot change the splits.
+- **Group-aware val carve.** Where a val split is carved from train (BANKING77),
+  rows sharing a normalized key always land on the same side, so the carve
+  cannot itself create overlap. BANKING77's val fraction is 1/6 per class,
+  matching BNIntent30's 100:20 train:val ratio.
+- **`.gitattributes` pins LF line endings,** so committed files and their sha256
+  do not differ between Windows and other systems.
+
 ### R4 — The seed list, k list, metrics and tests are fixed
 - seeds: `13, 42, 87, 100, 2026` (all five — CPU runs are cheap now)
 - k: `5, 10, 20, full`
@@ -206,36 +222,65 @@ much larger label space — and runs last.
 - BANKING77's license should be recorded in the README — verify it rather than
   assuming.
 
-### 3.3 BNIntent30 cleaning — apply in this order, at row level (R9)
-1. **Drop rows whose `bn_text` is literally `TRANSLATION_FAILED`** (67 rows).
-   After this the totals must be exactly **4,433 = 2,952 train / 595 val / 886
-   test**, which matches the published paper. Assert this. If it does not match,
-   stop and report — something upstream changed.
-2. **Drop all rows involved in a label conflict.** A conflict is one `bn_text`
-   string carrying more than one distinct `intent` (4 known cases, e.g. `হ্যাঁ`
-   labelled both `yes` and `no`). Drop **every** row with that text, not just
-   one. Rationale: such a row is unlearnable in training and unanswerable in
-   test — whatever the model predicts is scored wrong.
-3. **Resolve cross-split duplicates with priority `test > val > train`.** If the
-   same `bn_text` appears in more than one official split, keep the occurrence in
-   the *evaluation* split and drop the training (or val) occurrence.
+### 3.3 Cleaning — applies to ALL tracks, at row level (R9)
 
-   Rationale, which must be in the paper: Macro-F1 weights all 30 classes
-   equally, so removing test rows destabilises the metric, whereas losing ~76
-   rows from a 2,952-row training pool costs almost nothing — and the k-shot
-   regimes sample only k per class anyway. **Keep the measuring instrument
-   intact; spend from the training material.**
-4. Assign a stable `uid` to every surviving row and freeze it. `uid`s must be
-   deterministic across re-runs (derive from the source file and row index, not
-   from iteration order).
-5. Write `results/tables/data_cleaning.md`: counts removed at each step, broken
-   down per split, plus the per-split and per-class totals before and after.
+**THE COMPARISON KEY.** Every "same text" decision in this section uses the
+normalized key: Unicode NFC, lowercased, whitespace collapsed, and all
+punctuation removed (including ? . ! , ; : ' " ( ) and the Bangla danda and its
+variant). Rationale, which belongs in the paper: TfidfVectorizer lowercases and
+discards punctuation by default, so to the handcrafted-feature branch "How do I
+unblock my PIN?" and "how do i unblock my pin" are the same input. A dedup key
+weaker than the model's own normalization would leave leakage in precisely the
+branch this paper measures, and its effect would be largest at small k where a
+handful of leaked rows is a large fraction of the training set. Principle: the
+dedup key must be at least as aggressive as the most aggressive normalization
+any model component applies. Report duplicate counts under BOTH exact-string and
+normalized keys so the difference is visible in the paper.
 
-**This cleaning report is a paper contribution, not bookkeeping.** Finding
-genuine train/test overlap in a published Bangla benchmark — caused by machine
-translation collapsing distinct English sentences onto one Bangla sentence — is
-a result worth its own paragraph. Also produce the "dirty" comparison runs
-described in §5.
+Apply in this order, at row level, to the union of problems found in either
+language (R9):
+
+1. **Step 1.** Drop rows whose `bn_text` is literally `TRANSLATION_FAILED`.
+   After this, BNIntent30 totals must be exactly 4,433 = 2,952 train / 595 val /
+   886 test, matching the published paper. Assert it. (Already verified as
+   matching.)
+2. **Step 2.** Drop all rows involved in a label conflict — one normalized key
+   carrying more than one distinct intent. Drop EVERY row bearing a conflicted
+   key. Such a row is unlearnable in training and unanswerable in test: any
+   prediction is scored wrong.
+3. **Step 3.** Resolve cross-split duplicates with priority test > val > train.
+   If one normalized key appears in more than one split, keep the occurrence in
+   the EVALUATION split and drop the training or val occurrence. Rationale for
+   the direction, which must be in the paper: Macro-F1 weights all classes
+   equally, so removing test rows destabilises the metric, whereas losing ~100
+   rows from a ~2,950-row training pool costs almost nothing, and the k-shot
+   regimes sample only k per class anyway. Keep the measuring instrument intact;
+   spend from the training material.
+4. **Step 4.** Resolve within-split duplicates. If one normalized key appears
+   more than once inside the same split, keep the lowest uid and drop the rest.
+   Rationale: machine translation collapses distinct English sentences onto one
+   Bangla sentence ("please set an alarm" and "set an alarm" both become the
+   same Bangla string), so Bangla has within-split duplicates where English has
+   none. Left in place, a Bangla k-shot train set would hold fewer DISTINCT
+   utterances than its English counterpart at the same k — then k does not mean
+   the same thing in the two tracks, so the two lines in the paper's main figure
+   no longer share an x-axis, and any English-vs-Bangla difference would be
+   confounded by effective training-set size.
+5. **Step 5.** Assign a stable uid to every surviving row and freeze it. uids
+   must be deterministic and independent of processing order.
+6. **Step 6.** Write `results/tables/data_cleaning.md`: counts removed per step
+   per split, per-class before/after, both duplicate counts (exact and
+   normalized), and which language triggered each removal.
+
+**STEPS 2, 3 AND 4 APPLY TO BANKING77 AS WELL.** No dataset is exempt.
+
+**ASSERT AFTER ALL CLEANING:** every class in every track retains at least 20
+training rows (the largest k). Report the three smallest classes per track. If
+any class falls below 20, STOP and report — do not silently reduce k.
+
+This cleaning report is a paper contribution, not bookkeeping. Genuine
+train/test overlap in a published Bangla benchmark, caused by translation
+collapse, deserves its own paragraph and its own before/after table.
 
 ### 3.4 Licensing — code public, data not
 GAN-BnBERT has no license file and the paper states no data license. Therefore:
@@ -244,6 +289,27 @@ GAN-BnBERT has no license file and the paper states no data license. Therefore:
 - reproducibility comes from the download script + manifest + sha256 checks (R3)
 - draft a short email to the authors requesting permission to redistribute
   derived splits, and save it as `docs/data_license_request.md`
+
+### 3.5 Validation sets are k-matched
+
+The validation set scales with k: for a run at k, the validation split holds at
+most k examples per class, drawn from that track's val portion by the same
+sha256(seed, uid) ranking used for train, and NESTED the same way (the k=5 val
+set is a subset of the k=10 val set, and so on). k="full" uses the full val
+portion.
+
+Model selection — early stopping, epoch choice, anything that touches the
+weights or picks a checkpoint — uses ONLY the k-matched validation set.
+
+Rationale: a run that trains on 150 rows but early-stops on 577 labelled rows is
+not a 5-shot result. In a real 5-shot setting those 577 labels do not exist; if
+they did, they would be training data. Reviewers raise this, and correctly.
+
+Additionally, each run logs metrics on the FULL val portion under the key
+`val_full_diagnostic`, explicitly marked `"used_for_selection": false`. This
+answers "how much would a larger validation set have helped?" without
+contaminating the headline claim.
+
 
 ---
 
@@ -294,10 +360,22 @@ that if time runs out the core claim is already complete):
 1. `bnintent30-bn` and `bnintent30-en` — the primary parallel comparison
 2. `banking77` — the generality check
 
-**Plus one small extra set:** repeat `bnintent30-bn`, `sagff` + `baseline`, all
-k, all seeds, on the **uncleaned** (leaky) official splits, tagged
-`dirty=true` in the run JSON. 40 extra runs, seconds each. This produces the
-before/after table that turns the leakage finding into a measured result.
+**Plus the leaky-condition set.** Repeat `bnintent30-bn`, heads `sagff` and
+`baseline`, all k, all seeds, on splits built from the official assignment with
+step 1 applied and steps 2-4 NOT applied, tagged `dirty=true` in the run JSON.
+40 runs, seconds each.
+
+The dirty condition starts after step 1 on purpose. `TRANSLATION_FAILED` rows
+are corrupt placeholder strings, not leakage; leaving them in would make the
+dirty-vs-clean comparison measure two things at once (leakage AND garbage text),
+and neither effect could then be attributed. Starting after step 1 isolates the
+effect of cross-split duplication alone — one variable.
+
+For the paper: "the leaky condition retains the official splits after removal of
+untranslated placeholder rows, isolating the effect of cross-split duplication."
+
+The dirty condition keeps its own k-matched val sets per 3.5, built from its own
+uncleaned val portion.
 
 **Out of scope — do not build, do not suggest building:** CLINC150, HWU64,
 MASSIVE, the Banglish/code-mixed subset, scalar-vs-vector gate ablation,

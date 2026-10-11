@@ -8,9 +8,9 @@ Tracks (§3.1):
 The two BNIntent30 tracks are built from ONE shared cleaned row set (R9), so
 they contain the same uids, labels and split assignment; only the text differs.
 
-Text comparison key: every "same text" decision in this module (conflicts,
-cross-split duplicates) and in the tests uses `norm_text` = whitespace
-collapsed, nothing else. Stored text is never edited.
+Every "same text" decision in this repository - cleaning, the BANKING77 val
+carve, and the tests - goes through `norm_key` below. Nothing computes its own
+variant. Stored text is never edited.
 
 Usage:  python -m src.data      # writes data/clean/ and results/tables/data_cleaning.md
 """
@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import unicodedata
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -30,26 +31,46 @@ REPORT = ROOT / "results" / "tables" / "data_cleaning.md"
 
 TRACKS = ("bnintent30-en", "bnintent30-bn", "banking77")
 SPLITS = ("train", "val", "test")
-# §3.3 step 3: when a text occurs in several splits, the occurrence in the
-# highest-priority split is kept. Keep the measuring instrument intact.
+# §3.3 step 3: the occurrence in the highest-priority split is kept.
 SPLIT_PRIORITY = {"test": 0, "val": 1, "train": 2}
 FAILED_MARKER = "TRANSLATION_FAILED"
 # §3.3 step 1 expected totals (published paper). Asserted, never adjusted.
 STEP1_EXPECTED = {"train": 2952, "val": 595, "test": 886}
-LANG_FIELDS = {"bn": "bn_text", "en": "text"}
+MIN_TRAIN_PER_CLASS = 20  # the largest k (§3.3 post-cleaning assertion)
+BN30_FIELDS = {"bn": "bn_text", "en": "text"}
+B77_FIELDS = {"en": "text"}
 
-# BANKING77 has no official val split. We carve 1/6 of each class's training
-# rows as val. Why 1/6: BNIntent30's official split is 100 train : 20 val per
-# class, i.e. val = 1/6 of the train+val pool. Using the same proportion keeps
-# the role of the val set comparable across tracks. The carve is fixed (one
-# carve for all k and seeds, exactly like BNIntent30's fixed official val) and
-# group-aware: identical texts always land on the same side, so the carve itself
-# can never create train/val overlap.
+# BANKING77 has no official val split. 1/6 of each class's (cleaned) training
+# rows becomes val, matching BNIntent30's 100:20 train:val ratio (R3). The carve
+# is fixed for all k and seeds, like BNIntent30's official val, and group-aware
+# by norm_key so it cannot itself create train/val overlap. It runs AFTER
+# cleaning steps 2-4, so val is exactly 1/6 of clean rows.
 B77_VAL_FRACTION = 1 / 6
 B77_VAL_SALT = "banking77-val-carve-v1"
 
 
-def norm_text(s: str) -> str:
+# --------------------------------------------------------------------------- #
+# The comparison key (§3.3). The ONLY text-equality function in the repo.
+# --------------------------------------------------------------------------- #
+def norm_key(s: str) -> str:
+    """NFC, lowercased, every Unicode punctuation character (category P*:
+    ? . ! , ; : ' " ( ) - and the Bangla danda U+0964 / double danda U+0965 ...)
+    replaced by a space, whitespace collapsed.
+
+    Punctuation becomes a space rather than vanishing because that is what
+    TfidfVectorizer's tokenizer does: it splits on punctuation, it does not glue
+    the neighbours together.
+    """
+    s = unicodedata.normalize("NFC", s).lower()
+    s = "".join(" " if unicodedata.category(ch).startswith("P") else ch for ch in s)
+    return " ".join(s.split())
+
+
+def exact_key(s: str) -> str:
+    """Exact string, whitespace collapsed only (the Stage 1 key). Used ONLY to
+    report the counterfactual counts that §3.3 asks for; never decides anything.
+    Collapsing whitespace keeps these counts comparable with the Stage 1 report
+    (raw BANKING77 has duplicates that differ only by a trailing space)."""
     return " ".join(s.split())
 
 
@@ -59,10 +80,10 @@ def hash_key(*parts: str) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# BNIntent30
+# Loading (§3.3 step 5: uid = source file + row position, fixed at load time,
+# so it is independent of any later processing order)
 # --------------------------------------------------------------------------- #
 def load_bnintent30_raw(raw_dir: Path = RAW / "bnintent30") -> list[dict]:
-    """All 4,500 raw rows. uid = source file stem + row index in that file (§3.3 step 4)."""
     files = sorted(raw_dir.glob("*.json"))
     if len(files) != 30:
         raise FileNotFoundError(
@@ -76,92 +97,6 @@ def load_bnintent30_raw(raw_dir: Path = RAW / "bnintent30") -> list[dict]:
     return rows
 
 
-def _split_counts(rows: list[dict]) -> dict:
-    c = Counter(r["split"] for r in rows)
-    return {s: c.get(s, 0) for s in SPLITS}
-
-
-def _texts_with_conflict(rows: list[dict], field: str) -> set[str]:
-    labels = defaultdict(set)
-    for r in rows:
-        labels[norm_text(r[field])].add(r["intent"])
-    return {t for t, ls in labels.items() if len(ls) > 1}
-
-
-def _cross_split_losers(rows: list[dict], field: str) -> set[str]:
-    """uids of lower-priority occurrences of texts that appear in >1 split."""
-    by_text = defaultdict(list)
-    for r in rows:
-        by_text[norm_text(r[field])].append(r)
-    losers = set()
-    for group in by_text.values():
-        if len({r["split"] for r in group}) < 2:
-            continue
-        best = min(SPLIT_PRIORITY[r["split"]] for r in group)
-        losers |= {r["uid"] for r in group if SPLIT_PRIORITY[r["split"]] != best}
-    return losers
-
-
-def clean_bnintent30(rows: list[dict]) -> tuple[list[dict], dict]:
-    """Apply §3.3 steps 1-3 in order, at row level, to the union of problems in
-    either language (R9). Returns (clean rows, report dict)."""
-    rep = {"raw": _split_counts(rows), "steps": []}
-
-    # Step 1 - drop TRANSLATION_FAILED rows, then assert the published totals.
-    failed = [r for r in rows if r["bn_text"].strip() == FAILED_MARKER]
-    rows = [r for r in rows if r["bn_text"].strip() != FAILED_MARKER]
-    after1 = _split_counts(rows)
-    rep["steps"].append({"step": 1, "name": f"bn_text is literally {FAILED_MARKER}",
-                         "removed": _split_counts(failed), "remaining": after1,
-                         "by_language": {"bn": len(failed), "en": 0, "both": 0}})
-    if after1 != STEP1_EXPECTED:
-        raise AssertionError(
-            f"§3.3 step 1 totals do not match the published paper. Expected "
-            f"{STEP1_EXPECTED} (total 4,433), got {after1} (total {sum(after1.values())}). "
-            "Something upstream changed. STOP and report; do not adjust the expectation.")
-    rep["step1_total"] = sum(after1.values())
-
-    # Step 2 - drop EVERY row whose text (in either language) carries >1 intent.
-    conflict = {lang: _texts_with_conflict(rows, f) for lang, f in LANG_FIELDS.items()}
-    hit = {lang: {r["uid"] for r in rows if norm_text(r[f]) in conflict[lang]}
-           for lang, f in LANG_FIELDS.items()}
-    drop = hit["bn"] | hit["en"]
-    removed = [r for r in rows if r["uid"] in drop]
-    rows = [r for r in rows if r["uid"] not in drop]
-    rep["steps"].append({"step": 2, "name": "label conflict (same text, >1 intent; all rows dropped)",
-                         "removed": _split_counts(removed), "remaining": _split_counts(rows),
-                         "conflict_texts": {lang: len(v) for lang, v in conflict.items()},
-                         "by_language": _by_language(hit)})
-
-    # Step 3 - cross-split duplicates: keep test > val > train occurrence.
-    hit = {lang: _cross_split_losers(rows, f) for lang, f in LANG_FIELDS.items()}
-    cross_texts = {lang: _n_cross_split_texts(rows, f) for lang, f in LANG_FIELDS.items()}
-    drop = hit["bn"] | hit["en"]
-    removed = [r for r in rows if r["uid"] in drop]
-    rows = [r for r in rows if r["uid"] not in drop]
-    rep["steps"].append({"step": 3, "name": "cross-split duplicate (priority test > val > train)",
-                         "removed": _split_counts(removed), "remaining": _split_counts(rows),
-                         "cross_split_texts": cross_texts, "by_language": _by_language(hit)})
-
-    rep["final"] = _split_counts(rows)
-    return rows, rep
-
-
-def _by_language(hit: dict[str, set]) -> dict:
-    return {"bn": len(hit["bn"] - hit["en"]), "en": len(hit["en"] - hit["bn"]),
-            "both": len(hit["bn"] & hit["en"])}
-
-
-def _n_cross_split_texts(rows: list[dict], field: str) -> int:
-    splits = defaultdict(set)
-    for r in rows:
-        splits[norm_text(r[field])].add(r["split"])
-    return sum(len(s) > 1 for s in splits.values())
-
-
-# --------------------------------------------------------------------------- #
-# BANKING77
-# --------------------------------------------------------------------------- #
 def load_banking77_raw(raw_dir: Path = RAW / "banking77") -> list[dict]:
     rows = []
     for split in ("train", "test"):
@@ -175,16 +110,150 @@ def load_banking77_raw(raw_dir: Path = RAW / "banking77") -> list[dict]:
     return rows
 
 
+# --------------------------------------------------------------------------- #
+# Cleaning steps 2-4. Each takes the rows, the language->field map and a key
+# function, and returns (kept rows, {uid: set of languages that triggered the drop}).
+# Union over languages (R9) is built in: a row goes if ANY language flags it.
+# --------------------------------------------------------------------------- #
+def step2_conflicts(rows, fields, key=norm_key):
+    labels = {lang: defaultdict(set) for lang in fields}
+    for r in rows:
+        for lang, f in fields.items():
+            labels[lang][key(r[f])].add(r["intent"])
+    dropped = {}
+    for r in rows:
+        why = {lang for lang, f in fields.items() if len(labels[lang][key(r[f])]) > 1}
+        if why:
+            dropped[r["uid"]] = why
+    return [r for r in rows if r["uid"] not in dropped], dropped
+
+
+def step3_cross_split(rows, fields, key=norm_key):
+    """Greedy in (split priority, uid) order: a row is dropped iff one of its
+    keys is already held by a KEPT row of a higher-priority split. Testing
+    against kept rows (not all rows) means a row is never dropped because of a
+    row that was itself dropped."""
+    held = {lang: defaultdict(set) for lang in fields}  # key -> priorities of kept rows
+    kept, dropped = [], {}
+    for r in sorted(rows, key=lambda r: (SPLIT_PRIORITY[r["split"]], r["uid"])):
+        p = SPLIT_PRIORITY[r["split"]]
+        why = {lang for lang, f in fields.items() if any(q < p for q in held[lang][key(r[f])])}
+        if why:
+            dropped[r["uid"]] = why
+            continue
+        kept.append(r)
+        for lang, f in fields.items():
+            held[lang][key(r[f])].add(p)
+    return sorted(kept, key=lambda r: r["uid"]), dropped
+
+
+def step4_within_split(rows, fields, key=norm_key):
+    """Greedy in uid order within each split: keep the lowest uid of each key."""
+    held = {lang: set() for lang in fields}  # (split, key) of kept rows
+    kept, dropped = [], {}
+    for r in sorted(rows, key=lambda r: r["uid"]):
+        why = {lang for lang, f in fields.items() if (r["split"], key(r[f])) in held[lang]}
+        if why:
+            dropped[r["uid"]] = why
+            continue
+        kept.append(r)
+        for lang, f in fields.items():
+            held[lang].add((r["split"], key(r[f])))
+    return kept, dropped
+
+
+STEPS = (
+    (2, "label conflict (one key, >1 intent; every row with that key dropped)", step2_conflicts),
+    (3, "cross-split duplicate (priority test > val > train)", step3_cross_split),
+    (4, "within-split duplicate (lowest uid kept)", step4_within_split),
+)
+
+
+def _split_counts(rows) -> dict:
+    c = Counter(r["split"] for r in rows)
+    return {s: c.get(s, 0) for s in SPLITS}
+
+
+def _counts_by_split(uids, rows) -> dict:
+    split_of = {r["uid"]: r["split"] for r in rows}
+    c = Counter(split_of[u] for u in uids)
+    return {s: c.get(s, 0) for s in SPLITS}
+
+
+def _trigger_counts(dropped: dict, fields) -> dict:
+    langs = list(fields)
+    if len(langs) == 1:
+        return {langs[0]: len(dropped)}
+    return {"bn": sum(w == {"bn"} for w in dropped.values()),
+            "en": sum(w == {"en"} for w in dropped.values()),
+            "both": sum(w == {"bn", "en"} for w in dropped.values())}
+
+
+def apply_steps_2_to_4(rows, fields) -> tuple[list[dict], list[dict]]:
+    """Run steps 2-4 with norm_key, recording for each step the same step run
+    with exact_key on the same input (counterfactual, for the report only)."""
+    records = []
+    for num, name, fn in STEPS:
+        kept, dropped = fn(rows, fields, norm_key)
+        _, dropped_exact = fn(rows, fields, exact_key)
+        records.append({
+            "step": num, "name": name,
+            "removed": _counts_by_split(dropped, rows),
+            "removed_exact_key": _counts_by_split(dropped_exact, rows),
+            "by_language": _trigger_counts(dropped, fields),
+            "remaining": _split_counts(kept),
+        })
+        rows = kept
+    return rows, records
+
+
+# --------------------------------------------------------------------------- #
+# Per-dataset pipelines
+# --------------------------------------------------------------------------- #
+def bnintent30_step1(rows: list[dict]) -> tuple[list[dict], dict]:
+    failed = [r for r in rows if r["bn_text"].strip() == FAILED_MARKER]
+    kept = [r for r in rows if r["bn_text"].strip() != FAILED_MARKER]
+    after1 = _split_counts(kept)
+    if after1 != STEP1_EXPECTED:
+        raise AssertionError(
+            f"§3.3 step 1 totals do not match the published paper. Expected "
+            f"{STEP1_EXPECTED} (total 4,433), got {after1} (total {sum(after1.values())}). "
+            "Something upstream changed. STOP and report; do not adjust the expectation.")
+    record = {"step": 1, "name": f"bn_text is literally {FAILED_MARKER}",
+              "removed": _split_counts(failed), "removed_exact_key": _split_counts(failed),
+              "by_language": {"bn": len(failed), "en": 0, "both": 0}, "remaining": after1}
+    return kept, record
+
+
+def clean_bnintent30(rows: list[dict]) -> tuple[list[dict], dict]:
+    """§3.3 steps 1-4 at row level, union of both languages (R9)."""
+    rep = {"raw": _split_counts(rows)}
+    rows, rec1 = bnintent30_step1(rows)
+    rows, recs = apply_steps_2_to_4(rows, BN30_FIELDS)
+    rep["steps"] = [rec1] + recs
+    rep["final"] = _split_counts(rows)
+    return rows, rep
+
+
+def clean_banking77(rows: list[dict]) -> tuple[list[dict], dict]:
+    """§3.3 steps 2-4 on the official train/test, then the group-aware val carve."""
+    rep = {"raw": _split_counts(rows)}
+    rows, rep["steps"] = apply_steps_2_to_4(rows, B77_FIELDS)
+    rep["before_carve"] = _split_counts(rows)
+    rows = carve_banking77_val(rows)
+    rep["final"] = _split_counts(rows)
+    return rows, rep
+
+
 def carve_banking77_val(rows: list[dict]) -> list[dict]:
-    """Move round(n_c / 6) training rows per class into val, group-aware by text."""
+    """Move round(n_c / 6) training rows per class into val, group-aware by norm_key."""
     out = [dict(r) for r in rows]
     train_by_class = defaultdict(lambda: defaultdict(list))
     for r in out:
         if r["split"] == "train":
-            train_by_class[r["intent"]][norm_text(r["text"])].append(r)
-    for intent, groups in train_by_class.items():
-        n_class = sum(len(g) for g in groups.values())
-        target = round(n_class * B77_VAL_FRACTION)
+            train_by_class[r["intent"]][norm_key(r["text"])].append(r)
+    for groups in train_by_class.values():
+        target = round(sum(len(g) for g in groups.values()) * B77_VAL_FRACTION)
         ordered = sorted(groups.values(),
                          key=lambda g: hash_key(B77_VAL_SALT, min(r["uid"] for r in g)))
         taken = 0
@@ -208,21 +277,45 @@ def _to_track(rows: list[dict], text_field: str) -> dict:
     return {"label_names": label_names, "rows": track_rows}
 
 
+def smallest_train_classes(track: dict, n: int = 3) -> list[tuple[str, int]]:
+    c = Counter(r["label_id"] for r in track["rows"] if r["split"] == "train")
+    names = track["label_names"]
+    return sorted(((names[i], c.get(i, 0)) for i in range(len(names))), key=lambda x: (x[1], x[0]))[:n]
+
+
+def assert_min_train(tracks: dict) -> None:
+    """§3.3: every class in every track keeps >= 20 train rows. Never reduce k instead."""
+    bad = []
+    for name, t in tracks.items():
+        bad += [f"{name}: {cls} has {n}" for cls, n in smallest_train_classes(t, len(t["label_names"]))
+                if n < MIN_TRAIN_PER_CLASS]
+    if bad:
+        raise AssertionError(f"Classes below {MIN_TRAIN_PER_CLASS} training rows after cleaning "
+                             f"(STOP and report; do not reduce k): {bad}")
+
+
 def build_tracks() -> tuple[dict, dict]:
-    """Return ({track: {"label_names", "rows"}}, report). Rows carry uid, text,
-    label_id, split. Deterministic: same raw files -> identical output."""
+    """Return ({track: {"label_names", "rows"}}, report). Deterministic."""
     bn_raw = load_bnintent30_raw()
     bn_clean, bn_rep = clean_bnintent30(bn_raw)
     b77_raw = load_banking77_raw()
-    b77 = carve_banking77_val(b77_raw)
+    b77_clean, b77_rep = clean_banking77(b77_raw)
     tracks = {
         "bnintent30-en": _to_track(bn_clean, "text"),
         "bnintent30-bn": _to_track(bn_clean, "bn_text"),
-        "banking77": _to_track(b77, "text"),
+        "banking77": _to_track(b77_clean, "text"),
     }
-    report = {"bnintent30": bn_rep, "bn_raw": bn_raw, "bn_clean": bn_clean,
-              "b77_raw": b77_raw, "b77": b77}
+    assert_min_train(tracks)
+    report = {"bnintent30": bn_rep, "banking77": b77_rep, "bn_raw": bn_raw,
+              "bn_clean": bn_clean, "b77_raw": b77_raw, "b77_clean": b77_clean}
     return tracks, report
+
+
+def build_dirty_tracks() -> dict:
+    """Leaky condition (§5): official BNIntent30 assignment, step 1 applied,
+    steps 2-4 NOT applied. Bangla only."""
+    rows, _ = bnintent30_step1(load_bnintent30_raw())
+    return {"bnintent30-bn": _to_track(rows, "bn_text")}
 
 
 def write_clean(tracks: dict) -> None:
@@ -235,20 +328,70 @@ def write_clean(tracks: dict) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Cleaning report (§3.3 step 5). Every number below is computed here (R8).
-# Contains counts and intent names only - never utterance text (§3.4).
+# Cleaning report (§3.3 step 6). Every number is computed here (R8). Counts
+# and intent names only - never utterance text (§3.4).
 # --------------------------------------------------------------------------- #
 def _row(cells) -> str:
     return "| " + " | ".join(str(c) for c in cells) + " |"
 
 
-def _per_class(rows: list[dict]) -> dict:
-    c = Counter((r["intent"], r["split"]) for r in rows)
-    return c
+def _fmt(c: dict, splits=SPLITS) -> str:
+    return "/".join(str(c.get(s, 0)) for s in splits)
+
+
+def _step_table(rep: dict, langs: str) -> list[str]:
+    L = [_row(["Step", "Rule", "split", "removed (normalized key, applied)",
+               "would be removed under exact key", f"triggered by {langs}"]),
+         _row(["---"] * 6)]
+    for s in rep["steps"]:
+        bl = s["by_language"]
+        trig = " / ".join(str(v) for v in bl.values())
+        for sp in SPLITS:
+            L.append(_row([s["step"], s["name"] if sp == "train" else "", sp,
+                           s["removed"][sp], s["removed_exact_key"][sp], trig if sp == "train" else ""]))
+        L.append(_row(["", "", "**total**", f"**{sum(s['removed'].values())}**",
+                       sum(s["removed_exact_key"].values()),
+                       f"remaining {sum(s['remaining'].values())} ({_fmt(s['remaining'])})"]))
+    return L
+
+
+def _per_class_table(raw, clean, extra=None) -> list[str]:
+    rc = Counter((r["intent"], r["split"]) for r in raw)
+    fc = Counter((r["intent"], r["split"]) for r in clean)
+    head = ["intent", "raw (train/val/test)"] + (["after step 1"] if extra else []) + \
+           ["final (train/val/test)", "train removed", "val removed", "test removed"]
+    L = [_row(head), _row(["---"] * len(head))]
+    base = extra or rc
+    for intent in sorted({r["intent"] for r in raw}):
+        g = lambda c, s: c.get((intent, s), 0)
+        cells = [intent, "/".join(str(g(rc, s)) for s in SPLITS)]
+        if extra:
+            cells.append("/".join(str(g(extra, s)) for s in SPLITS))
+        cells.append("/".join(str(g(fc, s)) for s in SPLITS))
+        cells += [g(base, s) - g(fc, s) for s in SPLITS]
+        L.append(_row(cells))
+    return L
+
+
+def _b77_per_class_table(raw, clean) -> list[str]:
+    official = lambda r: r["uid"].split(".")[1]  # uid records the official split
+    rc = Counter((r["intent"], official(r)) for r in raw)
+    oc = Counter((r["intent"], official(r)) for r in clean)
+    fc = Counter((r["intent"], r["split"]) for r in clean)
+    head = ["intent", "raw (train/test)", "after steps 2-4 (train/test)",
+            "removed (train/test)", "final after carve (train/val/test)"]
+    L = [_row(head), _row(["---"] * len(head))]
+    for intent in sorted({r["intent"] for r in raw}):
+        g = lambda c, s: c.get((intent, s), 0)
+        L.append(_row([intent, f"{g(rc, 'train')}/{g(rc, 'test')}",
+                       f"{g(oc, 'train')}/{g(oc, 'test')}",
+                       f"{g(rc, 'train') - g(oc, 'train')}/{g(rc, 'test') - g(oc, 'test')}",
+                       "/".join(str(g(fc, s)) for s in SPLITS)]))
+    return L
 
 
 def write_report(tracks: dict, rep: dict, data_cfg: dict | None = None) -> str:
-    br = rep["bnintent30"]
+    br, b7 = rep["bnintent30"], rep["banking77"]
     L = ["# Data cleaning report", "",
          "Generated by `python -m src.data` (src/data.py). Do not edit by hand.", ""]
     if data_cfg:
@@ -256,94 +399,61 @@ def write_report(tracks: dict, rep: dict, data_cfg: dict | None = None) -> str:
               f"`{data_cfg['bnintent30']['commit']}`",
               f"- BANKING77 source: `{data_cfg['banking77']['repo']}` @ "
               f"`{data_cfg['banking77']['commit']}`", ""]
-    L += ["Text comparison key for every \"same text\" decision: whitespace-collapsed string, "
-          "otherwise exact (case and punctuation preserved). Rules are applied at row level to "
-          "the union of problems found in either language (R9), so `bnintent30-en` and "
-          "`bnintent30-bn` share one cleaned row set.", "",
+    L += ["**Comparison key** (`src.data.norm_key`, used by every decision): Unicode NFC, "
+          "lowercased, every punctuation character (Unicode category P, incl. the Bangla danda) "
+          "replaced by a space, whitespace collapsed. The \"exact key\" column re-runs the same "
+          "step on the same input with the raw string as key; it is reported for comparison only "
+          "and decides nothing.", "",
+          "Steps 2-4 are applied at row level to the union of problems found in either language "
+          "(R9), so `bnintent30-en` and `bnintent30-bn` share one cleaned row set. Steps 3 and 4 "
+          "are greedy in a fixed order (step 3: test, val, train, then uid; step 4: uid), and a row "
+          "is dropped only for colliding with a row that is *kept*.", "",
           "## BNIntent30: rows removed per step", "",
-          _row(["Step", "Rule", "train", "val", "test", "removed", "remaining (train/val/test)",
-                "triggered by bn only / en only / both"]),
-          _row(["---"] * 8),
-          _row(["0", "raw", "", "", "", "", f"{sum(br['raw'].values())} "
-                f"({br['raw']['train']}/{br['raw']['val']}/{br['raw']['test']})", ""])]
-    for s in br["steps"]:
-        rm, rem, bl = s["removed"], s["remaining"], s["by_language"]
-        L.append(_row([s["step"], s["name"], rm["train"], rm["val"], rm["test"],
-                       sum(rm.values()),
-                       f"{sum(rem.values())} ({rem['train']}/{rem['val']}/{rem['test']})",
-                       f"{bl['bn']} / {bl['en']} / {bl['both']}"]))
-    s2, s3 = br["steps"][1], br["steps"][2]
+          f"Raw: {sum(br['raw'].values())} rows ({_fmt(br['raw'])} train/val/test).", ""]
+    L += _step_table(br, "bn only / en only / both")
+    s1 = br["steps"][0]["remaining"]
     L += ["",
-          f"- Step 1 check: {br['step1_total']:,} rows = {br['steps'][0]['remaining']['train']:,} "
-          f"train / {br['steps'][0]['remaining']['val']} val / {br['steps'][0]['remaining']['test']} "
-          "test, matching the published paper (asserted in code).",
-          f"- Step 2: distinct conflicting texts: Bangla {s2['conflict_texts']['bn']}, "
-          f"English {s2['conflict_texts']['en']}.",
-          f"- Step 3: distinct texts occurring in more than one split (before step 3): Bangla "
-          f"{s3['cross_split_texts']['bn']}, English {s3['cross_split_texts']['en']}. The Bangla "
-          "excess is machine translation mapping distinct English sentences onto one Bangla sentence.",
+          f"- Step 1 check: {sum(s1.values()):,} = {s1['train']:,} train / {s1['val']} val / "
+          f"{s1['test']} test, matching the published paper (asserted in code).",
           f"- Final: {sum(br['final'].values()):,} rows = {br['final']['train']:,} train / "
-          f"{br['final']['val']} val / {br['final']['test']} test.", ""]
+          f"{br['final']['val']} val / {br['final']['test']} test.",
+          "- Step 5 (uids) removes nothing: uids are fixed at load time from source file and row "
+          "position, so they are independent of processing order.", ""]
+    step1_rows = [r for r in rep["bn_raw"] if r["bn_text"].strip() != FAILED_MARKER]
+    s1c = Counter((r["intent"], r["split"]) for r in step1_rows)
+    L += ["## BNIntent30: per-class counts", "",
+          "\"removed\" columns count steps 2-4 (relative to the after-step-1 counts).", ""]
+    L += _per_class_table(rep["bn_raw"], rep["bn_clean"], extra=s1c)
 
-    # Per-class table
-    raw_c, s1_rows = _per_class(rep["bn_raw"]), [r for r in rep["bn_raw"]
-                                                 if r["bn_text"].strip() != FAILED_MARKER]
-    s1_c, fin_c = _per_class(s1_rows), _per_class(rep["bn_clean"])
-    L += ["## BNIntent30: per-class counts (train / val / test)", "",
-          _row(["intent", "raw", "after step 1", "final", "train removed by steps 2-3",
-                "test removed by steps 2-3"]),
-          _row(["---"] * 6)]
-    for intent in sorted({r["intent"] for r in rep["bn_raw"]}):
-        f = lambda c: "/".join(str(c.get((intent, s), 0)) for s in SPLITS)
-        L.append(_row([intent, f(raw_c), f(s1_c), f(fin_c),
-                       s1_c.get((intent, "train"), 0) - fin_c.get((intent, "train"), 0),
-                       s1_c.get((intent, "test"), 0) - fin_c.get((intent, "test"), 0)]))
-    fin = Counter(r["intent"] for r in rep["bn_clean"] if r["split"] == "train")
-    L += ["", f"Final train rows per class: min {min(fin.values())}, max {max(fin.values())} "
-          f"(k=20 needs 20).", ""]
+    L += ["", "## BANKING77: rows removed per step", "",
+          f"Raw: {sum(b7['raw'].values()):,} rows ({b7['raw']['train']:,} train / "
+          f"{b7['raw']['test']:,} test; no official val). Step 1 does not apply "
+          "(no translation placeholders).", ""]
+    L += _step_table(b7, "en")
+    bc = b7["before_carve"]
+    vals = Counter(r["intent"] for r in rep["b77_clean"] if r["split"] == "val")
+    L += ["",
+          f"- After steps 2-4: {bc['train']:,} train / {bc['test']:,} test.",
+          f"- Val carve (after cleaning): fraction {B77_VAL_FRACTION:.4f} (1/6) per class, "
+          f"group-aware by norm_key -> {b7['final']['train']:,} train / {b7['final']['val']:,} "
+          f"val / {b7['final']['test']:,} test; val per class min {min(vals.values())}, "
+          f"max {max(vals.values())}.", "",
+          "## BANKING77: per-class counts", "",
+          "\"removed\" counts steps 2-4 per official split. The val carve happens after "
+          "cleaning and moves rows, it removes none.", ""]
+    L += _b77_per_class_table(rep["b77_raw"], rep["b77_clean"])
 
-    # Observations not acted on
-    L += ["## BNIntent30: observations NOT acted on (flagged for decision)", ""]
-    for lang, field in LANG_FIELDS.items():
-        strict = defaultdict(set)
-        for r in rep["bn_clean"]:
-            strict[norm_text(r[field]).casefold().strip(" ?.!,।")].add(r["split"])
-        n = sum(len(v) > 1 for v in strict.values())
-        L.append(f"- {lang}: {n} distinct texts still occur in more than one split if case and "
-                 "leading/trailing punctuation (` ?.!,।`) are also ignored. Exact-text rule per "
-                 "§3.3 leaves these in place.")
+    L += ["", "## Smallest training classes after cleaning", "",
+          f"Assertion: every class in every track keeps >= {MIN_TRAIN_PER_CLASS} training rows "
+          "(passes, or this report would not exist).", "",
+          _row(["track", "1st", "2nd", "3rd"]), _row(["---"] * 4)]
+    for name, t in tracks.items():
+        L.append(_row([name] + [f"{c} ({n})" for c, n in smallest_train_classes(t)]))
+
     no_bn = sum(not any("ঀ" <= ch <= "৿" for ch in r["bn_text"]) for r in rep["bn_clean"])
-    L.append(f"- {no_bn} surviving rows have a `bn_text` with no Bangla-script character "
-             "(digits/symbols only). Kept: no rule covers them.")
-    for lang, field in LANG_FIELDS.items():
-        dup = defaultdict(int)
-        for r in rep["bn_clean"]:
-            dup[(r["split"], norm_text(r[field]))] += 1
-        L.append(f"- {lang}: {sum(v - 1 for v in dup.values() if v > 1)} rows are exact "
-                 "duplicates of another row *within the same split* (not leakage; kept).")
-    L.append("")
-
-    # BANKING77
-    b77, b77_raw = rep["b77"], rep["b77_raw"]
-    bc = _split_counts(b77)
-    per = Counter((r["intent"], r["split"]) for r in b77)
-    intents = sorted({r["intent"] for r in b77})
-    vals = [per[(i, "val")] for i in intents]
-    by_split = defaultdict(set)
-    for r in b77:
-        by_split[r["split"]].add(norm_text(r["text"]))
-    L += ["## BANKING77", "",
-          f"- Raw: {sum(1 for r in b77_raw if r['split'] == 'train'):,} train / "
-          f"{sum(1 for r in b77_raw if r['split'] == 'test'):,} test, {len(intents)} intents. "
-          "No cleaning rule is specified for BANKING77 in CLAUDE.md; none was applied.",
-          f"- Val carved from train: fraction {B77_VAL_FRACTION:.4f} (1/6) per class, group-aware "
-          f"by text -> {bc['train']:,} train / {bc['val']:,} val / {bc['test']:,} test; "
-          f"val per class min {min(vals)}, max {max(vals)}.",
-          f"- **Flag:** {len(by_split['train'] & by_split['test'])} distinct texts occur in both "
-          f"train and test, {len(by_split['val'] & by_split['test'])} in both val and test, "
-          f"{len(by_split['train'] & by_split['val'])} in both train and val (exact text). "
-          "These are upstream overlaps in the official BANKING77 split; leakage test 2 will "
-          "report them until a cleaning decision is made.", ""]
+    L += ["", "## Observations not acted on", "",
+          f"- {no_bn} surviving BNIntent30 rows have a `bn_text` with no Bangla-script character "
+          "(digits/symbols only). Kept: no rule covers them.", ""]
 
     text = "\n".join(L)
     REPORT.parent.mkdir(parents=True, exist_ok=True)
@@ -360,7 +470,8 @@ def main() -> None:
     for name, t in tracks.items():
         c = Counter(r["split"] for r in t["rows"])
         print(f"{name:15s} {len(t['label_names'])} intents  "
-              + "  ".join(f"{s}={c[s]}" for s in SPLITS))
+              + "  ".join(f"{s}={c[s]}" for s in SPLITS)
+              + "  smallest train: " + ", ".join(f"{a}={b}" for a, b in smallest_train_classes(t)))
     print(f"wrote {CLEAN.relative_to(ROOT)}/ and {REPORT.relative_to(ROOT)}")
 
 

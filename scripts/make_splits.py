@@ -1,24 +1,31 @@
-"""Generate the fixed k-shot splits for every (track, k, seed) (CLAUDE.md R3, R5, R9).
+"""Generate the fixed k-shot splits for every (track, k, seed) (CLAUDE.md R3, R5, R9, §3.5).
 
-For each (track, k, seed):
-  train  at most k rows per class from the track's cleaned train portion
-         (k = "full": all of it)
-  val    the track's full val portion (fixed; identical for every k and seed)
-  test   the track's full test portion, ALL classes (R5)
+Two conditions, written to separate trees with separate manifests so they
+cannot be confused:
+  clean  data/splits/        all three tracks, cleaned per §3.3
+  dirty  data/splits_dirty/  bnintent30-bn only, official assignment after
+                             step 1, steps 2-4 NOT applied (§5 leaky condition)
 
-Sampling is done on uids. For each class, train uids are ranked by
-sha256(seed, uid) and the first k are taken. Consequences:
-  - deterministic and independent of any RNG library or library version;
-  - nested: for a fixed seed, the k=5 set is a subset of k=10, which is a
-    subset of k=20 - so the k-trend compares growing training sets, not
-    unrelated resamples;
+For each (track, k, seed), four files:
+  train     at most k rows per class from the train portion (k="full": all)
+  val       at most k rows per class from the val portion (k-matched, §3.5).
+            The ONLY split model selection may use.
+  test      the full test portion, ALL classes (R5)
+  val_full  the full val portion, for the val_full_diagnostic metric only
+            ("used_for_selection": false)
+
+Sampling (R3, requirements): for each class, uids are ranked by
+sha256(seed, uid) and the first k are taken - for train and val alike.
+  - no RNG library, so no library upgrade can change the splits;
+  - nested: for a fixed (track, seed), k=5 is a subset of k=10, of k=20, of full,
+    for train AND val, so training-set size is the only thing that varies with k;
   - R9: the two BNIntent30 tracks share uids and labels, so they get identical
     uid lists in identical order automatically.
-The train file is ordered by sha256(seed, "order", uid); val/test by uid.
+train.jsonl is ordered by sha256(seed, "order", uid); the other files by uid.
 
-Manifest policy: data/splits/manifest.json is written only if it does not
-exist (or with --rewrite-manifest). Otherwise the freshly generated splits are
-checked against it and the script exits non-zero on any mismatch.
+Manifest policy: a manifest is written only if it does not exist (or with
+--rewrite-manifest). Otherwise freshly generated splits are checked against it
+and the script exits non-zero on any mismatch.
 
 Usage:  python scripts/make_splits.py [--rewrite-manifest]
 """
@@ -36,11 +43,16 @@ sys.path.insert(0, str(ROOT))
 
 import yaml  # noqa: E402
 
-from src.data import SPLITS, TRACKS, build_tracks, hash_key  # noqa: E402
+from src.data import build_dirty_tracks, build_tracks, hash_key  # noqa: E402
 
 SEEDS = (13, 42, 87, 100, 2026)  # R4
 KS = (5, 10, 20, "full")          # R4
-SPLITS_DIR = ROOT / "data" / "splits"
+FILES = ("train", "val", "test", "val_full")
+CONDITIONS = {
+    "clean": ROOT / "data" / "splits",
+    "dirty": ROOT / "data" / "splits_dirty",
+}
+SPLITS_DIR = CONDITIONS["clean"]
 MANIFEST = SPLITS_DIR / "manifest.json"
 
 
@@ -48,7 +60,8 @@ def split_dir(base: Path, track: str, k, seed: int) -> Path:
     return base / track / f"k{k}_seed{seed}"
 
 
-def sample_train(rows: list[dict], k, seed: int) -> list[dict]:
+def sample_kshot(rows: list[dict], k, seed: int) -> list[dict]:
+    """First k uids per class by sha256(seed, uid) rank. Nested in k by construction."""
     by_class = defaultdict(list)
     for r in rows:
         by_class[r["label_id"]].append(r)
@@ -56,7 +69,7 @@ def sample_train(rows: list[dict], k, seed: int) -> list[dict]:
     for lid in sorted(by_class):
         ranked = sorted(by_class[lid], key=lambda r: hash_key(str(seed), r["uid"]))
         chosen += ranked if k == "full" else ranked[:k]
-    return sorted(chosen, key=lambda r: hash_key(str(seed), "order", r["uid"]))
+    return chosen
 
 
 def jsonl_bytes(rows: list[dict]) -> bytes:
@@ -64,51 +77,66 @@ def jsonl_bytes(rows: list[dict]) -> bytes:
                               ensure_ascii=False) + "\n" for r in rows).encode("utf-8")
 
 
-def generate(out_dir: Path, tracks: dict | None = None) -> dict:
+def sources() -> dict:
+    cfg = yaml.safe_load((ROOT / "configs" / "data.yaml").read_text(encoding="utf-8"))
+    return {
+        "bnintent30": {"repo": cfg["bnintent30"]["repo"], "commit": cfg["bnintent30"]["commit"],
+                       "archive_url": cfg["bnintent30"]["archive_url"]},
+        "banking77": {"repo": cfg["banking77"]["repo"], "commit": cfg["banking77"]["commit"],
+                      "urls": cfg["banking77"]["urls"],
+                      "files_sha256": cfg["banking77"]["files_sha256"]},
+    }
+
+
+def generate(out_dir: Path, tracks: dict, condition: str = "clean") -> dict:
     """Write all split files under out_dir and return the manifest dict."""
-    if tracks is None:
-        tracks, _ = build_tracks()
-    data_cfg = yaml.safe_load((ROOT / "configs" / "data.yaml").read_text(encoding="utf-8"))
     manifest = {
         "generator": "scripts/make_splits.py",
-        "sources": {
-            "bnintent30": {"repo": data_cfg["bnintent30"]["repo"],
-                           "commit": data_cfg["bnintent30"]["commit"],
-                           "archive_url": data_cfg["bnintent30"]["archive_url"]},
-            "banking77": {"repo": data_cfg["banking77"]["repo"],
-                          "commit": data_cfg["banking77"]["commit"],
-                          "urls": data_cfg["banking77"]["urls"],
-                          "files_sha256": data_cfg["banking77"]["files_sha256"]},
-        },
+        "condition": condition,
+        "description": {
+            "clean": "cleaned per CLAUDE.md §3.3 (steps 1-4)",
+            "dirty": "official BNIntent30 assignment, step 1 applied, steps 2-4 NOT applied "
+                     "(leaky condition, CLAUDE.md §5)",
+        }[condition],
+        "sources": sources(),
         "seeds": list(SEEDS), "ks": [str(k) for k in KS],
-        "label_names": {t: tracks[t]["label_names"] for t in TRACKS},
+        "files": {"train": "k-shot train", "val": "k-matched val, the only split used for "
+                  "selection", "test": "full test", "val_full": "full val, diagnostic only, "
+                  "used_for_selection=false"},
+        "label_names": {t: tracks[t]["label_names"] for t in tracks},
         "splits": [],
     }
-    for track in TRACKS:
-        t = tracks[track]
-        portion = {s: [r for r in t["rows"] if r["split"] == s] for s in SPLITS}
+    for track, t in tracks.items():
+        portion = {s: [r for r in t["rows"] if r["split"] == s] for s in ("train", "val", "test")}
         for k in KS:
             for seed in SEEDS:
-                files = {"train": sample_train(portion["train"], k, seed),
-                         "val": portion["val"], "test": portion["test"]}
+                train = sample_kshot(portion["train"], k, seed)
+                files = {
+                    "train": sorted(train, key=lambda r: hash_key(str(seed), "order", r["uid"])),
+                    "val": sorted(sample_kshot(portion["val"], k, seed), key=lambda r: r["uid"]),
+                    "test": portion["test"],
+                    "val_full": portion["val"],
+                }
                 d = split_dir(out_dir, track, k, seed)
                 d.mkdir(parents=True, exist_ok=True)
                 sha = {}
-                for s, rows in files.items():
-                    b = jsonl_bytes(rows)
-                    (d / f"{s}.jsonl").write_bytes(b)
-                    sha[s] = hashlib.sha256(b).hexdigest()
+                for name in FILES:
+                    b = jsonl_bytes(files[name])
+                    (d / f"{name}.jsonl").write_bytes(b)
+                    sha[name] = hashlib.sha256(b).hexdigest()
                 names = t["label_names"]
                 meta = {
-                    "track": track, "k": str(k), "seed": seed,
+                    "track": track, "condition": condition, "k": str(k), "seed": seed,
                     "label_names": names,
-                    "totals": {s: len(files[s]) for s in SPLITS},
-                    "per_class": {s: {names[i]: c for i, c in
-                                      sorted(Counter(r["label_id"] for r in files[s]).items())}
-                                  for s in SPLITS},
+                    "totals": {f: len(files[f]) for f in FILES},
+                    "per_class": {f: {names[i]: c for i, c in
+                                      sorted(Counter(r["label_id"] for r in files[f]).items())}
+                                  for f in FILES},
                     "sha256": sha,
-                    "sampling": "per class: first k train uids ranked by sha256(seed, uid); "
-                                "val/test: full fixed portions",
+                    "val_full_used_for_selection": False,
+                    "sampling": "train and val: per class, first k uids ranked by "
+                                "sha256(seed, uid), nested across k; test and val_full: full "
+                                "fixed portions",
                 }
                 (d / "meta.json").write_bytes(
                     (json.dumps(meta, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
@@ -116,7 +144,7 @@ def generate(out_dir: Path, tracks: dict | None = None) -> dict:
                     "track": track, "k": str(k), "seed": seed,
                     "path": d.relative_to(out_dir).as_posix(),
                     "sha256": sha,
-                    "uids": {s: [r["uid"] for r in files[s]] for s in SPLITS},
+                    "uids": {f: [r["uid"] for r in files[f]] for f in FILES},
                 })
     return manifest
 
@@ -132,8 +160,9 @@ def manifest_bytes(m: dict) -> bytes:
 
 def compare(new: dict, old: dict) -> list[str]:
     problems = []
-    if new["sources"] != old.get("sources"):
-        problems.append("upstream sources (commit/URL/checksum) differ from the manifest")
+    for field in ("condition", "sources", "label_names"):
+        if new[field] != old.get(field):
+            problems.append(f"{field} differs from the manifest")
     old_by = {(e["track"], e["k"], e["seed"]): e for e in old.get("splits", [])}
     for e in new["splits"]:
         key = (e["track"], e["k"], e["seed"])
@@ -141,34 +170,44 @@ def compare(new: dict, old: dict) -> list[str]:
         if o is None:
             problems.append(f"{key}: not in manifest")
             continue
-        for s in SPLITS:
-            if e["sha256"][s] != o["sha256"][s]:
-                problems.append(f"{key} {s}: sha256 {e['sha256'][s][:12]}.. != manifest "
-                                f"{o['sha256'][s][:12]}..")
-            if e["uids"][s] != o["uids"][s]:
-                problems.append(f"{key} {s}: uid list differs from manifest")
+        for f in FILES:
+            if e["sha256"][f] != o["sha256"].get(f):
+                problems.append(f"{key} {f}: sha256 {e['sha256'][f][:12]}.. != manifest "
+                                f"{str(o['sha256'].get(f))[:12]}..")
+            if e["uids"][f] != o["uids"].get(f):
+                problems.append(f"{key} {f}: uid list differs from manifest")
     problems += [f"{key}: in manifest but not generated" for key in old_by]
     return problems
+
+
+def build_condition_tracks(condition: str) -> dict:
+    return build_tracks()[0] if condition == "clean" else build_dirty_tracks()
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rewrite-manifest", action="store_true",
-                    help="deliberately overwrite data/splits/manifest.json")
+                    help="deliberately overwrite the manifest(s)")
     args = ap.parse_args()
-    manifest = generate(SPLITS_DIR)
-    n = len(manifest["splits"])
-    if not MANIFEST.exists() or args.rewrite_manifest:
-        MANIFEST.write_bytes(manifest_bytes(manifest))
-        print(f"Generated {n} (track, k, seed) splits; wrote {MANIFEST.relative_to(ROOT)}")
-        return
-    problems = compare(manifest, json.loads(MANIFEST.read_text(encoding="utf-8")))
-    if problems:
-        print(f"Generated {n} splits, but they do NOT match the committed manifest:")
-        for p in problems[:50]:
-            print("  -", p)
-        sys.exit(1)
-    print(f"Generated {n} splits; all match {MANIFEST.relative_to(ROOT)} (manifest not modified)")
+    failed = False
+    for condition, out_dir in CONDITIONS.items():
+        manifest = generate(out_dir, build_condition_tracks(condition), condition)
+        path = out_dir / "manifest.json"
+        rel = path.relative_to(ROOT)
+        n = len(manifest["splits"])
+        if not path.exists() or args.rewrite_manifest:
+            path.write_bytes(manifest_bytes(manifest))
+            print(f"[{condition}] generated {n} (track, k, seed) splits; wrote {rel}")
+            continue
+        problems = compare(manifest, json.loads(path.read_text(encoding="utf-8")))
+        if problems:
+            failed = True
+            print(f"[{condition}] generated {n} splits, but they do NOT match {rel}:")
+            for p in problems[:50]:
+                print("  -", p)
+        else:
+            print(f"[{condition}] generated {n} splits; all match {rel} (manifest not modified)")
+    sys.exit(1 if failed else 0)
 
 
 if __name__ == "__main__":

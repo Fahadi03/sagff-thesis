@@ -7,7 +7,10 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SPLITS_DIR = ROOT / "data" / "splits"
+DIRTY_DIR = ROOT / "data" / "splits_dirty"
 MANIFEST = SPLITS_DIR / "manifest.json"
+DIRTY_MANIFEST = DIRTY_DIR / "manifest.json"
+FILES = ("train", "val", "test", "val_full")
 
 
 def explain(title: str, problems: list, limit: int = 15) -> str:
@@ -19,36 +22,53 @@ def explain(title: str, problems: list, limit: int = 15) -> str:
     return "\n".join(lines)
 
 
-def read_jsonl(p: Path) -> list[dict]:
-    return [json.loads(line) for line in p.read_text(encoding="utf-8").splitlines()]
-
-
 def check(problems: list, title: str) -> None:
     """Fail with a clean, readable message (no traceback/fixture dump) if problems exist."""
     if problems:
         pytest.fail(explain(title, problems), pytrace=False)
 
 
+def read_jsonl(p: Path) -> list[dict]:
+    return [json.loads(line) for line in p.read_text(encoding="utf-8").splitlines()]
+
+
+def _load_manifest(path: Path) -> dict:
+    if not path.exists():
+        pytest.fail(f"{path.relative_to(ROOT)} not found. Run: python scripts/download_data.py "
+                    "&& python scripts/make_splits.py", pytrace=False)
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _load_files(manifest: dict, base: Path) -> dict:
+    """{(track, k, seed): {file name: rows}} read from disk."""
+    out = {}
+    for e in manifest["splits"]:
+        d = base / e["path"]
+        if not d.exists():
+            pytest.fail(f"Split directory {d.relative_to(ROOT)} is missing. "
+                        "Run: python scripts/make_splits.py", pytrace=False)
+        out[(e["track"], e["k"], e["seed"])] = {f: read_jsonl(d / f"{f}.jsonl") for f in FILES}
+    return out
+
+
 @pytest.fixture(scope="session")
 def manifest() -> dict:
-    if not MANIFEST.exists():
-        pytest.fail(f"{MANIFEST.relative_to(ROOT)} not found. Run: python scripts/download_data.py "
-                    "&& python scripts/make_splits.py", pytrace=False)
-    return json.loads(MANIFEST.read_text(encoding="utf-8"))
+    return _load_manifest(MANIFEST)
+
+
+@pytest.fixture(scope="session")
+def dirty_manifest() -> dict:
+    return _load_manifest(DIRTY_MANIFEST)
 
 
 @pytest.fixture(scope="session")
 def split_files(manifest) -> dict:
-    """{(track, k, seed): {"train"/"val"/"test": rows}} read from disk."""
-    out = {}
-    for e in manifest["splits"]:
-        d = SPLITS_DIR / e["path"]
-        if not d.exists():
-            pytest.fail(f"Split directory {d.relative_to(ROOT)} is missing. "
-                        "Run: python scripts/make_splits.py", pytrace=False)
-        out[(e["track"], e["k"], e["seed"])] = {s: read_jsonl(d / f"{s}.jsonl")
-                                                 for s in ("train", "val", "test")}
-    return out
+    return _load_files(manifest, SPLITS_DIR)
+
+
+@pytest.fixture(scope="session")
+def dirty_files(dirty_manifest) -> dict:
+    return _load_files(dirty_manifest, DIRTY_DIR)
 
 
 @pytest.fixture(scope="session")
