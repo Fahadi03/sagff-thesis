@@ -18,6 +18,7 @@ python -m venv .venv
 .venv/Scripts/python scripts/cache_embeddings.py   # frozen XLM-R, once (~13 min on CPU); idempotent
 .venv/Scripts/python -m pytest tests/ -v
 .venv/Scripts/python scripts/smoke_test.py         # one sagff run -> results/smoke/
+.venv/Scripts/python scripts/stopping_diagnostic.py  # best vs final epoch gate -> results/tables/
 ```
 
 `scripts/select_feature_dims.py` was run once (validation only) and its result is

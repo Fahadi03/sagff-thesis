@@ -81,9 +81,23 @@ def test_logged_param_counts_match_modules_and_order():
                 f"{name} @ {n} classes: config says {HC['param_counts'][name][key]}, module has {got}"
 
 
-def test_grid_order_permuted_right_after_sagff_and_baseline_cap_last():
-    assert CONDITIONS.index("sagff-permuted") == CONDITIONS.index("sagff") + 1
-    assert CONDITIONS[-1] == "baseline-cap"
+def test_grid_order_is_the_supervisor_ruling():
+    """Own claims first (sagff, the two capacity-matched heads, the two controls);
+    prior-work-style reference heads last, so they are what gets dropped."""
+    assert CONDITIONS == ("sagff", "baseline-cap", "concat-cap", "sagff-noise-perepoch",
+                          "sagff-permuted-fixed", "baseline", "concat")
+
+
+def test_control_conditions_use_the_sagff_head():
+    from src.train import RunSpec
+    modes = {}
+    for c in CONDITIONS:
+        spec = RunSpec(track="bnintent30-bn", k="5", seed=13, condition=c)
+        modes[c] = spec.permutation_mode
+        if c.startswith("sagff"):
+            assert spec.head == "sagff", f"{c} must use the sagff head"
+    assert modes["sagff-noise-perepoch"] == "per-epoch" and modes["sagff-permuted-fixed"] == "fixed"
+    assert all(modes[c] is None for c in CONDITIONS if c not in ("sagff-noise-perepoch", "sagff-permuted-fixed"))
 
 
 def test_permutation_preserves_marginals_and_is_deterministic():
@@ -95,3 +109,14 @@ def test_permutation_preserves_marginals_and_is_deterministic():
     assert (p1 == np.arange(200)).mean() < 0.05, "permutation leaves most rows in place"
     assert not np.array_equal(p1, permutation(42, "test", uids)), "seed does not change the permutation"
     assert not np.array_equal(p1, permutation(13, "train", uids)), "split does not change the permutation"
+
+
+def test_per_epoch_permutation_changes_every_epoch_and_is_reproducible():
+    """I-A: a fresh mapping each epoch (cannot be memorized), reproducible from (seed, epoch)."""
+    uids = [f"u{i:03d}" for i in range(200)]
+    perms = [permutation(13, "train", uids, epoch=e) for e in range(1, 6)]
+    for a in range(5):
+        for b in range(a + 1, 5):
+            assert not np.array_equal(perms[a], perms[b]), f"epochs {a + 1} and {b + 1} share a permutation"
+    assert np.array_equal(perms[2], permutation(13, "train", uids, epoch=3)), "per-epoch permutation not reproducible"
+    assert not np.array_equal(perms[0], permutation(13, "train", uids)), "epoch 1 equals the fixed permutation"

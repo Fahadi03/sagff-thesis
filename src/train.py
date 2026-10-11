@@ -3,14 +3,20 @@
     load split (by manifest; sha256 verified) -> fit handcrafted features on TRAIN
     only (featurize_run) -> load frozen embeddings BY UID -> build head ->
     gate statistics at initialisation (test split) -> train with early stopping
-    on the k-matched VALIDATION split -> restore best epoch -> evaluate on test
-    -> gate statistics after training -> one JSON, even on failure.
+    on the k-matched VALIDATION split -> gate statistics at the FINAL epoch ->
+    restore best epoch -> evaluate on test -> gate statistics at the best epoch ->
+    one JSON, even on failure.
 
-Run conditions (grid order, §5): baseline, concat, sagff, sagff-permuted,
-concat-cap, baseline-cap. `sagff-permuted` is the sagff head with the
-utterance -> feature-vector mapping permuted within every split using the run's
-seed: every marginal property of the feature branch is kept, its relationship to
-the label is destroyed (G3).
+Run conditions, in grid order (§5, CONDITIONS): sagff, baseline-cap, concat-cap,
+sagff-noise-perepoch, sagff-permuted-fixed, baseline, concat. The two controls
+use the sagff head with real, train-fitted features whose utterance -> vector
+mapping is permuted (every marginal property of the branch is kept):
+  sagff-noise-perepoch   re-permuted every epoch from (seed, epoch): carries no
+                         stable content, cannot be memorized. Tests whether the
+                         gate can reject a worthless branch.
+  sagff-permuted-fixed   one fixed permutation per split: a memorizable,
+                         non-generalizing identifier. Tests whether the gate is
+                         fooled by exploitability. Its failure is a result.
 
 Hyperparameters come from configs/default.yaml and are identical for every head
 and regime (R2). The learning rate was selected once, on validation, with the
@@ -35,7 +41,9 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "configs" / "default.yaml"
 SPLIT_BASES = {False: ROOT / "data" / "splits", True: ROOT / "data" / "splits_dirty"}
-CONDITIONS = ("baseline", "concat", "sagff", "sagff-permuted", "concat-cap", "baseline-cap")
+CONDITIONS = ("sagff", "baseline-cap", "concat-cap", "sagff-noise-perepoch",
+              "sagff-permuted-fixed", "baseline", "concat")
+PERMUTATION_MODE = {"sagff-noise-perepoch": "per-epoch", "sagff-permuted-fixed": "fixed"}
 GATE_BINS = 20
 
 
@@ -53,11 +61,15 @@ class RunSpec:
 
     @property
     def head(self) -> str:
-        return "sagff" if self.condition == "sagff-permuted" else self.condition
+        return "sagff" if self.condition in PERMUTATION_MODE else self.condition
+
+    @property
+    def permutation_mode(self) -> str | None:
+        return PERMUTATION_MODE.get(self.condition)
 
     @property
     def permuted(self) -> bool:
-        return self.condition == "sagff-permuted"
+        return self.permutation_mode is not None
 
     @property
     def run_id(self) -> str:
@@ -71,9 +83,25 @@ def _sha256(b: bytes) -> str:
 
 
 def git_state() -> dict:
+    """Commit and cleanliness of the CODE. Files the experiments themselves write
+    (results/, logs/) do not count as dirt, otherwise every run after the first
+    would be recorded as uncommitted."""
     def git(*a):
-        return subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True).stdout.strip()
-    return {"commit": git("rev-parse", "HEAD"), "working_tree_dirty": bool(git("status", "--porcelain"))}
+        return subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True).stdout
+    changed = [line[3:] for line in git("status", "--porcelain").splitlines()]
+    dirt = [path for path in changed if not path.startswith(("results/", "logs/"))]
+    return {"commit": git("rev-parse", "HEAD").strip(), "working_tree_dirty": bool(dirt),
+            "dirty_paths": dirt[:20]}
+
+
+def require_clean_tree(what: str) -> dict:
+    """Refuse to run a selection or grid from uncommitted code (every number must
+    trace to a commit). Returns the git state to record as provenance."""
+    state = git_state()
+    if state["working_tree_dirty"]:
+        raise SystemExit(f"{what}: the working tree has uncommitted changes {state['dirty_paths']}. "
+                         "Commit first, so every number traces to a commit.")
+    return state
 
 
 def library_versions() -> dict:
@@ -102,10 +130,12 @@ def load_split(spec: RunSpec) -> tuple[dict, dict, list[str]]:
     return splits, sha, manifest["label_names"][spec.track]
 
 
-def permutation(seed: int, split: str, uids: list[str]) -> np.ndarray:
-    """RNG-free, deterministic permutation of rows, keyed on (seed, split, uid)."""
+def permutation(seed: int, split: str, uids: list[str], epoch: int | None = None) -> np.ndarray:
+    """RNG-free, deterministic permutation of rows, keyed on (seed, split, uid) and,
+    for the per-epoch control, the epoch."""
+    tag = split if epoch is None else f"{split}\x1fepoch{epoch}"
     return np.array(sorted(range(len(uids)),
-                           key=lambda i: _sha256(f"{seed}\x1fpermute\x1f{split}\x1f{uids[i]}".encode())))
+                           key=lambda i: _sha256(f"{seed}\x1fpermute\x1f{tag}\x1f{uids[i]}".encode())))
 
 
 def macro_f1_acc(y_true, y_pred, n_classes) -> dict:
@@ -136,7 +166,8 @@ def run(spec: RunSpec) -> dict:
            "spec": {**asdict(spec), "head": spec.head,
                     "log_dir": (log_dir.relative_to(ROOT) if log_dir.is_relative_to(ROOT)
                                 else log_dir).as_posix()},
-           "dirty": spec.dirty, "permuted": spec.permuted, "git": git_state()}
+           "dirty": spec.dirty, "permuted": spec.permuted,
+           "permutation_mode": spec.permutation_mode, "git": git_state()}
     try:
         log.update(_run(spec))
         log["status"] = "ok"
@@ -176,11 +207,14 @@ def _run(spec: RunSpec) -> dict:
     # handcrafted features: fit on TRAIN only, same object transforms every split (R1)
     pipeline, X = featurize_run(splits)
     feat_report = pipeline.report()
+    uids = {n: [r["uid"] for r in rows] for n, rows in splits.items()}
     perm_info = None
-    if spec.permuted:
-        perm_info = {}
-        for name, rows in splits.items():
-            p = permutation(spec.seed, name, [r["uid"] for r in rows])
+    if spec.permutation_mode is not None:
+        # Both controls: the evaluation-time mapping (val/val_full/test, and train
+        # for the fixed control) is one fixed permutation per split.
+        perm_info = {"mode": spec.permutation_mode}
+        for name in splits:
+            p = permutation(spec.seed, name, uids[name])
             X[name] = X[name][p]
             perm_info[name] = {"n": len(p), "fixed_points": int((p == np.arange(len(p))).sum())}
 
@@ -191,15 +225,23 @@ def _run(spec: RunSpec) -> dict:
     T = {n: (torch.from_numpy(E[n]), torch.from_numpy(X[n].toarray().astype(np.float32)),
              torch.from_numpy(y[n])) for n in splits}
 
+    def epoch_features(name: str, epoch: int):
+        """Features seen during training epoch `epoch`. Only the per-epoch control
+        re-permutes (from seed, epoch, split); otherwise the split's fixed tensor."""
+        f = T[name][1]
+        if spec.permutation_mode != "per-epoch":
+            return f
+        return f[torch.from_numpy(permutation(spec.seed, name, uids[name], epoch=epoch))]
+
     torch.manual_seed(spec.seed)  # head init depends only on the seed
     model = build_head(spec.head, n_classes, heads_cfg, float(heads_cfg["dropout"]))
     n_params = count_params(model)
 
-    def predict(name):
+    def predict(name, features=None):
         model.eval()
         e, f, _ = T[name]
         with torch.no_grad():
-            logits, aux = model(e, f)
+            logits, aux = model(e, f if features is None else features)
         return logits.argmax(-1).numpy(), aux.get("gate")
 
     gate_log = {}
@@ -210,11 +252,12 @@ def _run(spec: RunSpec) -> dict:
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=float(tr["weight_decay"]))
     loss_fn = nn.CrossEntropyLoss()
     gen = torch.Generator().manual_seed(spec.seed)
-    e_tr, f_tr, y_tr = T["train"]
+    e_tr, _, y_tr = T["train"]
     best = {"val_macro_f1": -1.0, "epoch": -1, "state": None}
     curve, patience_left = [], int(tr["patience"])
     for epoch in range(1, int(tr["max_epochs"]) + 1):
         model.train()
+        f_tr = epoch_features("train", epoch)
         order = torch.randperm(len(y_tr), generator=gen)
         total = 0.0
         for i in range(0, len(order), int(tr["batch_size"])):
@@ -225,7 +268,7 @@ def _run(spec: RunSpec) -> dict:
             nn.utils.clip_grad_norm_(model.parameters(), float(tr["grad_clip"]))
             opt.step()
             total += float(loss.detach()) * len(idx)
-        val = macro_f1_acc(y["val"], predict("val")[0], n_classes)["macro_f1"]
+        val = macro_f1_acc(y["val"], predict("val", epoch_features("val", epoch))[0], n_classes)["macro_f1"]
         curve.append({"epoch": epoch, "train_loss": round(total / len(y_tr), 6), "val_macro_f1": round(val, 6)})
         if val > best["val_macro_f1"]:           # strict improvement; ties keep the earlier epoch
             best = {"val_macro_f1": val, "epoch": epoch, "state": copy.deepcopy(model.state_dict())}
@@ -234,6 +277,11 @@ def _run(spec: RunSpec) -> dict:
             patience_left -= 1
             if patience_left == 0:
                 break
+    final_epoch = len(curve)
+    if spec.head == "sagff" and spec.evaluate_test:
+        # M: gate at the FINAL trained epoch, before restoring the selected one
+        _, g_final = predict("test")
+        gate_log.update(gate_stats(g_final.numpy(), "gate_final_"))
     model.load_state_dict(best["state"])
 
     metrics = {"val": {**macro_f1_acc(y["val"], predict("val")[0], n_classes),
@@ -245,15 +293,24 @@ def _run(spec: RunSpec) -> dict:
         metrics["test"] = {**macro_f1_acc(y["test"], pred, n_classes), "n": int(len(y["test"]))}
         if spec.head == "sagff":
             gate_log.update(gate_stats(g1.numpy(), "gate_"))
+            init_dim = np.array(gate_log["gate_init_mean_per_dim"])
             gate_log["gate_displacement"] = {   # derived: what the paper analyses (G2)
                 "mean": round(gate_log["gate_mean"] - gate_log["gate_init_mean"], 6),
                 "mean_abs_per_dim": round(float(np.mean(np.abs(
-                    np.array(gate_log["gate_mean_per_dim"]) - np.array(gate_log["gate_init_mean_per_dim"])))), 6),
+                    np.array(gate_log["gate_mean_per_dim"]) - init_dim))), 6),
+            }
+            gate_log["gate_displacement_final_epoch"] = {   # M: stopping-point sensitivity
+                "epoch": final_epoch,
+                "mean": round(gate_log["gate_final_mean"] - gate_log["gate_init_mean"], 6),
+                "mean_abs_per_dim": round(float(np.mean(np.abs(
+                    np.array(gate_log["gate_final_mean_per_dim"]) - init_dim))), 6),
+                "best_minus_final_gate_mean": round(gate_log["gate_mean"] - gate_log["gate_final_mean"], 6),
             }
 
     return {
         "config": {"track": spec.track, "k": spec.k, "seed": spec.seed, "condition": spec.condition,
                    "head": spec.head, "dirty": spec.dirty, "permuted": spec.permuted,
+                   "permutation_mode": spec.permutation_mode,
                    "training": {**tr, "lr": lr}, "heads": {kk: heads_cfg[kk] for kk in
                    ("d_model", "feat_dim", "dropout", "gate_bias_init", "baseline_cap_hidden",
                     "concat_cap_hidden")},

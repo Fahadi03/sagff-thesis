@@ -26,13 +26,14 @@ def validate(log: dict) -> list[str]:
     if log.get("status") != "ok":
         return p + [f"status={log.get('status')}: {log.get('error')}"]
     g, n_test, d = log["gate"], log["metrics"]["test"]["n"], log["config"]["heads"]["d_model"]
-    for prefix in ("gate_", "gate_init_"):
+    for prefix in ("gate_", "gate_init_", "gate_final_"):
         if len(g[f"{prefix}mean_per_dim"]) != d:
             p.append(f"{prefix}mean_per_dim has length {len(g[f'{prefix}mean_per_dim'])}, expected {d}")
         if len(g[f"{prefix}hist"]) != 20 or sum(g[f"{prefix}hist"]) != n_test * d:
             p.append(f"{prefix}hist must have 20 bins summing to n_test*d_model")
-    if "gate_displacement" not in g:
-        p.append("missing derived gate_displacement")
+    for key in ("gate_displacement", "gate_displacement_final_epoch"):
+        if key not in g:
+            p.append(f"missing derived {key}")
     if log["metrics"]["val_full_diagnostic"]["used_for_selection"] is not False:
         p.append("val_full_diagnostic must be marked used_for_selection=false")
     if not log["head"]["param_count"]:

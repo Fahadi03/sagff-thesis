@@ -71,10 +71,11 @@ paper's methodology section. A reviewer will check it.
 
 ### R2 — Identical backbone and identical head hyperparameters across compared models
 All five heads (`baseline`, `concat`, `baseline-cap`, `concat-cap`, `sagff`) and
-the `sagff-permuted` control use the **same cached embeddings, same optimizer,
-same LR, same schedule, same epochs, same batch size, same seed, same
-early-stopping rule**. The only difference is the head's structure (and, for
-`sagff-permuted`, the permuted feature mapping). **No per-head or per-regime
+the two permutation controls (`sagff-noise-perepoch`, `sagff-permuted-fixed`) use
+the **same cached embeddings, same optimizer, same LR, same schedule, same
+epochs, same batch size, same seed, same early-stopping rule**. The only
+difference is the head's structure (and, for the controls, the permuted feature
+mapping). **No per-head or per-regime
 tuning was performed:** the training hyperparameters (§2, "Training") are one
 set, applied unchanged to every head, condition, track and k.
 
@@ -118,8 +119,9 @@ R3 also fixes, as requirements rather than implementation details:
 - model-vs-model test: **Wilcoxon signed-rank**, paired over (track, k, seed)
 - **trend test for the signature hypothesis: Spearman rank correlation between
   `k` and the gate DISPLACEMENT** (`gate_displacement.mean` = `gate_mean` -
-  `gate_init_mean`, see R7), computed per track, with p-value and n, for `sagff`
-  and for the `sagff-permuted` control separately (§2, "The permuted control")
+  `gate_init_mean`, see R7), computed per track, with p-value and n
+- every confirmatory statistic is fixed in §10, "Pre-specified analyses", which
+  was committed before any grid run
 
 That last one matters: Wilcoxon compares models to each other, it says nothing
 about whether gate reliance changes with k. The paper's central claim needs its
@@ -147,9 +149,10 @@ Every run JSON also records:
   features help; the paper reports it;
 - the degenerate (constant-on-train) utterance statistics, from
   `HandcraftedFeatures.report()["degenerate_stats"]`;
-- `dirty` and `permuted` flags (true only for the leaky condition and for
-  `sagff-permuted` respectively), and for permuted runs the permutation's
-  per-split size and fixed-point count.
+- `dirty` and `permuted` flags and `permutation_mode` (`dirty` true only for the
+  leaky condition; `permuted` true for both controls, with mode `per-epoch` or
+  `fixed`), and for permuted runs the permutation's per-split size and
+  fixed-point count.
 
 ### R7 — Gate statistics are the paper's main result, not a debug print
 For every `sagff` run, record over the **test** split:
@@ -167,6 +170,14 @@ the derived field `gate_displacement` (`mean` = `gate_mean` - `gate_init_mean`;
 uses it. Reason: with 150 training examples the gate can move little from its
 starting point, with 2,672 it can move a great deal, so the final level alone
 would change with k for reasons of optimisation, not feature reliance.
+
+The same four statistics are also recorded at the FINAL trained epoch (the last
+epoch before early stopping ended the run) under `gate_final_mean`,
+`gate_final_std`, `gate_final_mean_per_dim`, `gate_final_hist`, with the derived
+`gate_displacement_final_epoch` (including `best_minus_final_gate_mean`). The
+paper's quantity is the displacement at the selected best epoch; the final-epoch
+values show whether it depends on the stopping point
+(`results/tables/stopping_diagnostic.md`).
 
 These go in the run JSON. Not optional.
 
@@ -256,32 +267,52 @@ tests of information and of gating rather than of capacity.
   `configs/default.yaml` (0.0, so g is approximately 0.5 at initialisation); the
   W_g weights keep PyTorch's default initialisation under the run seed. The value
   lives in the config, not in the code.
-- **`sagff-permuted`** — a sixth run condition: identical to `sagff` in every
-  respect, except that within each split (train, val, test) the mapping from
-  utterance to handcrafted feature vector is permuted, deterministically from the
-  run's seed (`src.train.permutation`). This preserves every marginal property
-  of the feature branch — sparsity, scale, dimension, distribution — while
-  destroying its relationship to the label. Tagged `permuted=true`. All tracks,
-  all k, all seeds: 60 runs. It runs immediately after the `sagff` runs.
-- **The logic, which belongs in the paper.** If the gate-displacement trend under
-  permuted features differs from the trend under real features, the gate is
-  tracking feature INFORMATIVENESS, which is the paper's claim. If the two trends
-  are the same, the gate is tracking optimisation dynamics, and the signature
-  hypothesis does not survive. Either outcome is reportable, and we report
-  whichever occurs.
+- **Two permutation controls.** Both are identical to `sagff` in every respect
+  (same head, same real, train-fitted features), except for the mapping from
+  utterance to handcrafted feature vector, which is permuted deterministically
+  (`src.train.permutation`, RNG-free). Both preserve every marginal property of
+  the feature branch — sparsity, scale, dimension, distribution. Both are tagged
+  `permuted=true`; all tracks, all k, all seeds: 60 runs each.
+  - **`sagff-noise-perepoch`** (control I-A): the training mapping is re-permuted
+    every epoch from (seed, epoch); evaluation splits use one fixed permutation.
+    The branch carries no stable content and cannot be memorized. Expected: the
+    gate shuts the branch off and g rises. Tests whether the gate can reject a
+    worthless branch.
+  - **`sagff-permuted-fixed`** (control I-B): one fixed permutation per split. A
+    fixed random vector per training example is a perfect training-set
+    identifier: memorizable, non-generalizing. Expected: the gate moves toward the
+    features and test Macro-F1 falls to chance. Tests whether the gate is fooled by
+    exploitability. Keep it as is; its failure is the result.
+- **What the gate measures — a limitation established before the grid, stated in
+  the paper as known, not hidden.** A sanity run of the fixed-permutation design
+  showed the gate moving toward memorizable noise. So `gate_mean` does not measure
+  how INFORMATIVE a branch is; it measures how EXPLOITABLE the branch is during
+  training — the cheapest route to zero training loss. Under real features the two
+  coincide because TF-IDF and character n-grams capture genuine regularities;
+  under memorizable noise they come apart. I-A shows whether the gate is blind,
+  I-B whether it is infallible, and §10 S3 tests whether the gate's reliance on
+  real features is EARNED (accompanied by a test-set gain).
 
 ### Training (identical for every head, condition, track and k)
 AdamW, weight decay 0.01, batch size 32, dropout `heads.dropout`, gradient
 clipping 1.0, constant learning rate, up to 200 epochs, early stopping with
 patience 20 on Macro-F1 of the k-matched validation split (§3.5); the best
 epoch is restored before testing. The learning rate was chosen ONCE from
-{3e-4, 1e-3, 3e-3} on validation using the `baseline` head ONLY
-(`scripts/select_lr.py`, `results/tables/lr_selection.md`) and applied unchanged
-to all six conditions; its value and provenance are frozen in
+a half-decade grid, extended at whichever edge the winner sat until it was
+bracketed, on validation using the `baseline` head ONLY
+(`scripts/select_lr.py`, `results/tables/lr_selection.md`), and applied
+unchanged to all seven conditions; its value and provenance are frozen in
 `configs/default.yaml` (`training.lr`, `training.lr_selection`). Selecting on the
 baseline removes any suggestion that hyperparameters were tuned in favour of
 the proposed model; if it disadvantages anything, it disadvantages `sagff`. No
 per-head or per-regime tuning was performed.
+
+**No regularisation tuning was performed.** Weight decay is 0.01 and dropout is
+`heads.dropout` for every head, untuned. Tuning them on the baseline head would
+tune them in the wrong place: at roughly 25k parameters the baseline barely
+overfits. The capacity-matched design absorbs the overfitting confound instead,
+because the three large heads (`baseline-cap`, `concat-cap`, `sagff`) are equally
+exposed to it.
 
 ---
 
@@ -447,9 +478,11 @@ The total feature dimension must be **identical for every k**, so that `W_p` has
 a stable shape across runs. Log the realised dimension per family in every run
 config. The dimensions (TF-IDF columns, hash buckets) were selected ONCE on
 k-matched validation data only, with the handcrafted branch alone, by the rule
-"smallest configuration within one SD of the best", and are frozen in
-`configs/default.yaml` (`scripts/select_feature_dims.py`,
-`results/tables/feature_dim_selection.md`).
+"smallest configuration within one SD of the best", with the grid extended
+downward in any dimension whose chosen value sat on the grid's lower edge, until
+the choice was bracketed, and are frozen in `configs/default.yaml`
+(`scripts/select_feature_dims.py`, `results/tables/feature_dim_selection.md`,
+which also states how flat performance is across the grid).
 
 `uppercase_ratio` stays in every track. As measured
 (`results/tables/feature_overview.md`), the column is degenerate (constant on the
@@ -493,19 +526,22 @@ low-resource problem this paper studies.* Record it in limitations/future work.
 | k | 5, 10, 20, full |
 | seeds | 13, 42, 87, 100, 2026 |
 | heads | baseline, concat, baseline-cap, concat-cap, sagff |
-| run conditions | the five heads + `sagff-permuted` |
+| run conditions | the five heads + `sagff-noise-perepoch` + `sagff-permuted-fixed` |
 
-3 tracks x 4 k x 5 seeds x 6 conditions = **360 runs**, plus 40 leaky-condition
-runs = 400. On cached embeddings these are seconds to tens of seconds each.
+3 tracks x 4 k x 5 seeds x 7 conditions = **420 runs**, plus 40 leaky-condition
+runs = **460**. On cached embeddings these are seconds to tens of seconds each.
 
 **Run order matters** (the grid must be resumable and must follow this order, so
 that if time runs out the core claim is already complete):
 1. `bnintent30-bn` and `bnintent30-en` — the primary parallel comparison
 2. `banking77` — the generality check
 
-Within each track the conditions run in the order `baseline`, `concat`, `sagff`,
-`sagff-permuted`, `concat-cap`, `baseline-cap` (`src.train.CONDITIONS`).
-`sagff-permuted` runs immediately after `sagff` and is never optional.
+Within each track the conditions run in the order `sagff`, `baseline-cap`,
+`concat-cap`, `sagff-noise-perepoch`, `sagff-permuted-fixed`, `baseline`, `concat`
+(`src.train.CONDITIONS`), and the leaky-condition set runs after all clean runs.
+Our own claims come first: `baseline-cap` is half of primary comparison S4 and is
+never dropped. If time runs out, what gets dropped is the comparison to
+prior-work-style setups (`baseline`, `concat`), not our own claims.
 
 **Plus the leaky-condition set.** Repeat `bnintent30-bn`, heads `sagff` and
 `baseline`, all k, all seeds, on splits built from the official assignment with
@@ -593,6 +629,7 @@ Expect roughly 20 minutes on CPU for all three tracks, once.
 │   ├── select_feature_dims.py  # one-off, validation-only, then frozen
 │   ├── head_capacity.py    # baseline-cap width + parameter table
 │   ├── feature_report.py
+│   ├── stopping_diagnostic.py  # best-epoch vs final-epoch gate (Task M)
 │   ├── smoke_test.py
 │   └── run_all.py
 ├── tests/
@@ -604,6 +641,7 @@ Expect roughly 20 minutes on CPU for all three tracks, once.
 │   ├── runs/               # one JSON per run
 │   ├── selection/          # JSON logs of the one-off selection runs (not results)
 │   ├── smoke/              # smoke-test JSON
+│   ├── diagnostics/        # diagnostic runs (not results)
 │   ├── tables/
 │   └── figures/
 └── README.md               # reproduction commands
@@ -653,9 +691,11 @@ that every class keeps at least 20 train rows. PROVES the cleaned row sets meet
 in (0, 1); the gate bias comes from the config and the mean gate at
 initialisation is ~0.5; feature-free heads ignore `h_feat`; feature heads use
 it; `baseline-cap` is within 20% and `concat-cap` within 1% of `sagff`'s
-parameter count; logged counts match the modules; `sagff-permuted` follows
-`sagff` in the grid order; the permutation is deterministic, seed- and
-split-dependent and a true permutation. PROVES the architecture and the control's
+parameter count; logged counts match the modules; the grid order is the
+supervisor's ruling; both controls use the `sagff` head with the right
+permutation mode; the permutation is deterministic, seed- and split-dependent
+and a true permutation; the per-epoch permutation differs between epochs and is
+reproducible from (seed, epoch). PROVES the architecture and the control's
 construction. Does NOT prove anything about training.
 
 `scripts/run_all.py` runs the whole test suite first and **refuses to start the
@@ -679,3 +719,75 @@ grid if anything fails.**
 - Commit after each working stage with a clear message.
 - Do not add dependencies a stage does not need. Do not refactor working code
   that is not in the way.
+
+---
+
+## 10. Pre-specified analyses
+
+**Fixed before any grid run.** This section was committed before a single grid
+run existed; the paper names that commit (`git log --diff-filter=A -S
+"## 10. Pre-specified analyses" -- CLAUDE.md`). Choosing statistics after
+seeing results is p-hacking; fixing them beforehand is this paper's strongest
+integrity claim. Nothing here may be changed after the grid starts. Any analysis
+not listed here is reported as exploratory and labelled as such.
+
+**Common rules.**
+- Data: the clean condition only (`dirty=false`), test split, the epoch selected
+  by early stopping. Displacement = `gate_displacement.mean`; Macro-F1 =
+  `metrics.test.macro_f1`.
+- Pairing unit: (track, k, seed). Tracks `bnintent30-bn`, `bnintent30-en`,
+  `banking77`; k 5, 10, 20, full; seeds 13, 42, 87, 100, 2026.
+- Tests: `scipy.stats.spearmanr` and `scipy.stats.wilcoxon` (`zero_method="wilcox"`),
+  all TWO-SIDED at alpha = 0.05. The predicted direction is stated below in
+  advance; a significant result in the opposite direction is reported as
+  contradicting the prediction, never re-framed.
+- Multiplicity: the family is the nine tests below (S1 x 3 tracks, S2 x 2, S3,
+  S4, S5). Each p-value is reported unadjusted AND Holm-adjusted across the nine.
+- Reported for every test: the statistic, p, Holm-adjusted p, n (and, for Wilcoxon,
+  n after dropping zero differences), the median paired difference and the
+  matched-pairs rank-biserial correlation; for Spearman, rho.
+- Failed runs: reported; their pairs are excluded and the reduced n stated. No run
+  is repeated with changed settings.
+- The final-epoch displacement (`gate_displacement_final_epoch.mean`) is analysed
+  with the same S1-S3 as a pre-specified SENSITIVITY analysis, not as a
+  replacement.
+
+**S1 — signature hypothesis.** Spearman rank correlation between k (5 < 10 < 20
+< full, as ranks) and the `sagff` gate displacement, computed separately per
+track; n = 4 k x 5 seeds = 20 per track. Report rho, p, n.
+*Predicted direction: rho > 0* — the gate leans further toward the handcrafted
+branch (more negative displacement) when training data is scarce, and back toward
+the encoder as k grows. The same correlation is reported for both controls,
+descriptively.
+
+**S2 — real versus control trends.** Paired Wilcoxon signed-rank on the gate
+displacement, `sagff` against each control, paired over (track, k, seed);
+n = 60 per comparison.
+- S2a, `sagff` vs `sagff-noise-perepoch`. *Predicted: `sagff` displacement LOWER*
+  (the gate moves toward real features and away from per-epoch noise, which it
+  should shut off, so g rises under noise).
+- S2b, `sagff` vs `sagff-permuted-fixed`. *No directional prediction is
+  registered.* The fixed control is memorizable, so the gate may move toward it as
+  far as, or further than, toward real features (the sanity run suggested so, but
+  a single run is not a basis for a prediction). S2b quantifies exploitability; it
+  does not test the paper's claim.
+
+**S3 — is the reliance earned?** Spearman correlation, over (track, k, seed),
+n = 60, between the `sagff` gate displacement and the test Macro-F1 difference
+(`sagff` minus `baseline-cap`, same track, k, seed). *Predicted sign: rho < 0* —
+the gate moves toward the handcrafted features (more negative displacement)
+precisely where the features deliver a test-set gain. This is what separates
+earned reliance from the memorization established by control I-B.
+
+**S4 — does handcrafted information help? (PRIMARY model comparison.)**
+Wilcoxon signed-rank on test Macro-F1, `concat-cap` vs `baseline-cap`, paired over
+(track, k, seed), n = 60. Capacity matched, no gate on either side.
+*Predicted: `concat-cap` HIGHER.*
+
+**S5 — does gating help? (PRIMARY model comparison.)** Wilcoxon signed-rank on
+test Macro-F1, `sagff` vs `concat-cap`, paired over (track, k, seed), n = 60.
+Capacity matched, features on both sides. *Predicted: `sagff` HIGHER.*
+
+S4 and S5 are the designated primary model comparisons. `baseline` and `concat`
+are reference points only: comparisons involving them, the leaky condition, and
+per-k breakdowns are descriptive.

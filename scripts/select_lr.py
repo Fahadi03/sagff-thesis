@@ -1,20 +1,26 @@
 """Select the learning rate ONCE, on validation, with the BASELINE head only.
 
-Grid: lr in {3e-4, 1e-3, 3e-3}. Cells: all three tracks x all k x all five seeds,
-baseline head, everything else exactly as in the grid (configs/default.yaml
-`training`). Each cell is scored by Macro-F1 on its k-matched validation split
-at the early-stopping epoch. Test data is never loaded (RunSpec.evaluate_test=False).
+Starting grid: lr in {3e-4, 1e-3, 3e-3, 1e-2}. Cells: all three tracks x all k x
+all five seeds, baseline head, everything else exactly as in the grid
+(configs/default.yaml `training`). Each cell is scored by Macro-F1 on its
+k-matched validation split at the early-stopping epoch. Test data is never
+loaded (RunSpec.evaluate_test=False).
 
 Rule: the lr with the highest mean validation Macro-F1 over all (track, k, seed)
-cells. The winner is applied UNCHANGED to every head and every regime. Selecting
-on the baseline means no hyperparameter was tuned in favour of the proposed
-model; if it disadvantages anything, it disadvantages sagff (conservative).
+cells. Bracketing rule (Task K): if the winner is the LARGEST (smallest) lr in
+the grid, the grid is extended upward (downward) by one step of the same
+half-decade ladder (..., 1e-3, 3e-3, 1e-2, 3e-2, 1e-1, ...) and the rule is
+re-applied, until the winner is interior.
 
-Per-run JSON logs go to results/selection/lr/ (not results/runs/). Writes
-results/tables/lr_selection.md and the `training.lr` + provenance in
+The winner is applied UNCHANGED to every head and every regime. Selecting on the
+baseline means no hyperparameter was tuned in favour of the proposed model; if it
+disadvantages anything, it disadvantages sagff (conservative).
+
+Runs only from a committed tree. Per-run JSON logs go to results/selection/lr/.
+Writes results/tables/lr_selection.md and `training.lr` + provenance in
 configs/default.yaml. Refuses to run again once selected, unless --reselect.
 
-Usage:  python scripts/select_lr.py
+Usage:  python scripts/select_lr.py [--reselect]
 """
 import argparse
 import datetime
@@ -28,9 +34,10 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.train import RunSpec, run  # noqa: E402
+from src.train import RunSpec, require_clean_tree, run  # noqa: E402
 
-LR_GRID = (3e-4, 1e-3, 3e-3)
+LADDER = (1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 1e-1, 3e-1)
+START = (3e-4, 1e-3, 3e-3, 1e-2)
 TRACKS = ("bnintent30-bn", "bnintent30-en", "banking77")
 KS = ("5", "10", "20", "full")
 SEEDS = (13, 42, 87, 100, 2026)
@@ -39,44 +46,72 @@ CONFIG = ROOT / "configs" / "default.yaml"
 OUT = ROOT / "results" / "tables" / "lr_selection.md"
 
 
+def run_cells(lr: float, commit: str) -> dict:
+    scores = {}
+    for t in TRACKS:
+        for k in KS:
+            for s in SEEDS:
+                spec = RunSpec(track=t, k=k, seed=s, condition="baseline", lr=lr,
+                               evaluate_test=False, log_dir=LOG_DIR, tag=f"lr{lr:g}")
+                path = LOG_DIR / f"{spec.run_id}.json"
+                if path.exists():
+                    log = json.loads(path.read_text(encoding="utf-8"))
+                    if log["git"]["commit"] != commit or log["git"]["working_tree_dirty"]:
+                        sys.exit(f"{path} comes from another commit or a dirty tree; move it away first.")
+                else:
+                    log = run(spec)
+                if log["status"] != "ok":
+                    sys.exit(f"selection run failed: {spec.run_id}\n{log.get('traceback')}")
+                scores[(t, k, s)] = log["metrics"]["val"]["macro_f1"]
+    print(f"lr={lr:g} done", flush=True)
+    return scores
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--reselect", action="store_true")
     args = ap.parse_args()
+    git = require_clean_tree("select_lr")
     raw = CONFIG.read_text(encoding="utf-8")
     cfg = yaml.safe_load(raw)
     if cfg["training"].get("lr") is not None and not args.reselect:
         sys.exit("training.lr is already selected and frozen in configs/default.yaml.")
 
-    score = {}
-    for lr in LR_GRID:
-        for t in TRACKS:
-            for k in KS:
-                for s in SEEDS:
-                    spec = RunSpec(track=t, k=k, seed=s, condition="baseline", lr=lr,
-                                   evaluate_test=False, log_dir=LOG_DIR, tag=f"lr{lr:g}")
-                    path = LOG_DIR / f"{spec.run_id}.json"
-                    log = json.loads(path.read_text(encoding="utf-8")) if path.exists() else run(spec)
-                    if log["status"] != "ok":
-                        sys.exit(f"selection run failed: {spec.run_id}\n{log.get('traceback')}")
-                    score[(lr, t, k, s)] = log["metrics"]["val"]["macro_f1"]
-        print(f"lr={lr:g} done", flush=True)
+    grid, score, rounds = list(START), {}, []
+    while True:
+        for lr in grid:
+            if lr not in score:
+                score[lr] = run_cells(lr, git["commit"])
+        mean = {lr: statistics.mean(score[lr].values()) for lr in grid}
+        chosen = max(grid, key=lambda lr: mean[lr])
+        rounds.append({"grid": sorted(grid), "chosen": chosen})
+        i = LADDER.index(chosen)
+        if chosen == max(grid) and i + 1 < len(LADDER):
+            grid.append(LADDER[i + 1])
+        elif chosen == min(grid) and i > 0:
+            grid.append(LADDER[i - 1])
+        else:
+            break
+    grid = sorted(grid)
+    bracketed = min(grid) < chosen < max(grid)
 
-    mean = {lr: statistics.mean(v for key, v in score.items() if key[0] == lr) for lr in LR_GRID}
-    chosen = max(LR_GRID, key=lambda lr: mean[lr])
     L = ["# Learning-rate selection (validation only, baseline head only)", "",
          "Generated by `python scripts/select_lr.py`. Do not edit by hand.", "",
-         "Baseline head, every other hyperparameter as in configs/default.yaml. Each cell: Macro-F1 "
-         f"on the k-matched validation split at the early-stopping epoch, mean (min-max) over seeds "
-         f"{list(SEEDS)}. Test data never loaded. Rule: highest mean over all cells.", "",
-         f"**Chosen: lr = {chosen:g}**", "",
-         "| lr | " + " | ".join(f"{t.replace('bnintent30-', '')} k={k}" for t in TRACKS for k in KS)
+         f"Run from commit `{git['commit']}` (clean tree). Baseline head, every other hyperparameter "
+         "as in configs/default.yaml. Each cell: Macro-F1 on the k-matched validation split at the "
+         f"early-stopping epoch, mean (min-max) over seeds {list(SEEDS)}. Test data never loaded. "
+         "Rule: highest mean over all cells; if the winner is a grid edge, extend the grid one step "
+         "beyond it and re-apply.", "",
+         f"**Chosen: lr = {chosen:g}** ("
+         + ("interior: bracketed on both sides" if bracketed else "NOT bracketed: still on a grid edge")
+         + f"). Rounds: " + "; ".join(f"grid {[f'{x:g}' for x in r['grid']]} -> {r['chosen']:g}" for r in rounds),
+         "", "| lr | " + " | ".join(f"{t.replace('bnintent30-', '')} k={k}" for t in TRACKS for k in KS)
          + " | mean over all cells |", "|" + " --- |" * (2 + len(TRACKS) * len(KS))]
-    for lr in LR_GRID:
+    for lr in grid:
         cells = []
         for t in TRACKS:
             for k in KS:
-                v = [score[(lr, t, k, s)] for s in SEEDS]
+                v = [score[lr][(t, k, s)] for s in SEEDS]
                 cells.append(f"{statistics.mean(v):.3f} ({min(v):.3f}-{max(v):.3f})")
         L.append(f"| {lr:g}{' **chosen**' if lr == chosen else ''} | " + " | ".join(cells)
                  + f" | {mean[lr]:.4f} |")
@@ -88,11 +123,15 @@ def main() -> None:
         "selected_on": "k-matched VALIDATION splits only; test never loaded",
         "head": "baseline ONLY; applied unchanged to every head and regime",
         "date": datetime.date.today().isoformat(),
-        "grid": list(LR_GRID), "rule": "highest mean val Macro-F1 over all cells",
+        "git_commit": git["commit"], "working_tree_clean": not git["working_tree_dirty"],
+        "grid_final": grid, "bracketing_rounds": len(rounds), "bracketed": bracketed,
+        "rule": "highest mean val Macro-F1 over all cells; extend the grid while the winner is an edge",
         "cells": {"tracks": list(TRACKS), "k": list(KS), "seeds": list(SEEDS)},
-        "mean_val_macro_f1": {f"{lr:g}": round(mean[lr], 4) for lr in LR_GRID},
+        "mean_val_macro_f1": {f"{lr:g}": round(mean[lr], 4) for lr in grid},
         "script": "scripts/select_lr.py", "report": "results/tables/lr_selection.md",
         "runs": "results/selection/lr/",
+        "history": "2026-10-11: grid {3e-4,1e-3,3e-3} -> 3e-3, run from an uncommitted tree "
+                   "(logs in results/selection/lr_218bd44_uncommitted/); this run supersedes it",
     }
     header = "".join(line + "\n" for line in raw.splitlines() if line.startswith("#"))
     CONFIG.write_text(header + yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8", newline="\n")
