@@ -1,0 +1,425 @@
+{
+ "run_id": "bnintent30-bn__k20__seed2026__baseline__lr0.01",
+ "status": "ok",
+ "spec": {
+  "track": "bnintent30-bn",
+  "k": "20",
+  "seed": 2026,
+  "condition": "baseline",
+  "dirty": false,
+  "lr": 0.01,
+  "evaluate_test": false,
+  "log_dir": "results/selection/lr",
+  "tag": "lr0.01",
+  "head": "baseline"
+ },
+ "dirty": false,
+ "permuted": false,
+ "permutation_mode": null,
+ "git": {
+  "commit": "7e7f8f6443751f41649160f22874f88902f6dd38",
+  "working_tree_dirty": false,
+  "dirty_paths": []
+ },
+ "config": {
+  "track": "bnintent30-bn",
+  "k": "20",
+  "seed": 2026,
+  "condition": "baseline",
+  "head": "baseline",
+  "dirty": false,
+  "permuted": false,
+  "permutation_mode": null,
+  "training": {
+   "optimizer": "AdamW",
+   "lr": 0.01,
+   "weight_decay": 0.01,
+   "batch_size": 32,
+   "grad_clip": 1.0,
+   "max_epochs": 200,
+   "patience": 20,
+   "lr_schedule": "constant",
+   "selection_metric": "Macro-F1 on the k-matched validation split (val.jsonl)",
+   "loss": "cross-entropy",
+   "threads": 6,
+   "tuning_note": "identical for every head, condition, track and regime; no per-head or per-regime tuning. lr selected once on validation with the baseline head only.",
+   "lr_selection": {
+    "selected_on": "k-matched VALIDATION splits only; test never loaded",
+    "head": "baseline ONLY; applied unchanged to every head and regime",
+    "date": "2026-10-11",
+    "grid": [
+     0.0003,
+     0.001,
+     0.003
+    ],
+    "rule": "highest mean val Macro-F1 over all cells",
+    "cells": {
+     "tracks": [
+      "bnintent30-bn",
+      "bnintent30-en",
+      "banking77"
+     ],
+     "k": [
+      "5",
+      "10",
+      "20",
+      "full"
+     ],
+     "seeds": [
+      13,
+      42,
+      87,
+      100,
+      2026
+     ]
+    },
+    "mean_val_macro_f1": {
+     "0.0003": 0.7722,
+     "0.001": 0.7966,
+     "0.003": 0.7997
+    },
+    "script": "scripts/select_lr.py",
+    "report": "results/tables/lr_selection.md",
+    "runs": "results/selection/lr/"
+   }
+  },
+  "heads": {
+   "d_model": 768,
+   "feat_dim": 518,
+   "dropout": 0.1,
+   "gate_bias_init": 0.0,
+   "baseline_cap_hidden": 1024,
+   "concat_cap_hidden": 512
+  },
+  "features": {
+   "tfidf_dim": 256,
+   "chargram_dim": 256,
+   "stats_dim": 6
+  }
+ },
+ "libraries": {
+  "python": "3.13.3",
+  "numpy": "2.5.3",
+  "scipy": "1.18.1",
+  "scikit-learn": "1.9.1",
+  "torch": "2.14.1+cpu"
+ },
+ "determinism": {
+  "torch_deterministic_algorithms": true,
+  "threads": 6,
+  "seeded": [
+   "random",
+   "numpy",
+   "torch",
+   "shuffle generator"
+  ]
+ },
+ "encoder": {
+  "name": "FacebookAI/xlm-roberta-base",
+  "revision": "e73636d4f797dec63c3081bb6ed5c7b0bb3f2089",
+  "pooling": "mean",
+  "max_length": 128,
+  "cache_sha256": "84e10f26456fd63709c566e487c52e9f88ad54a50448ee87e15588b783e4426d"
+ },
+ "splits": {
+  "sha256": {
+   "train": "24d6fee0d90b69f5b9d2821d5103abb8c101f9e4fd2b50ac671a8a1403c5c70e",
+   "val": "7290e242a7ad4f1a67d07f1759858b4913a619a0174a336ece2d58a898c85284",
+   "val_full": "7290e242a7ad4f1a67d07f1759858b4913a619a0174a336ece2d58a898c85284"
+  },
+  "sizes": {
+   "train": 600,
+   "val": 568,
+   "val_full": 568
+  },
+  "label_names": [
+   "alarm",
+   "calculator",
+   "calendar",
+   "change_user_name",
+   "change_volume",
+   "current_location",
+   "date",
+   "distance",
+   "fun_fact",
+   "goodbye",
+   "how_old_are_you",
+   "make_call",
+   "next_song",
+   "no",
+   "play_music",
+   "reminder",
+   "repeat",
+   "spelling",
+   "tell_joke",
+   "thank_you",
+   "time",
+   "todo_list",
+   "traffic",
+   "translate",
+   "weather",
+   "what_are_your_hobbies",
+   "what_is_your_name",
+   "what_song",
+   "where_are_you_from",
+   "yes"
+  ]
+ },
+ "features": {
+  "dims": {
+   "tfidf": 256,
+   "chargram": 256,
+   "stats": 6,
+   "total": 518
+  },
+  "tfidf_vocab_size": 886,
+  "tfidf_selected": 256,
+  "tfidf_padded_columns": 0,
+  "degenerate_stats": [
+   "uppercase_ratio"
+  ],
+  "transform_log": {
+   "train": {
+    "n": 600,
+    "tfidf_empty_rows": 17,
+    "chargram_empty_rows": 0
+   },
+   "val": {
+    "n": 568,
+    "tfidf_empty_rows": 23,
+    "chargram_empty_rows": 0
+   },
+   "val_full": {
+    "n": 568,
+    "tfidf_empty_rows": 23,
+    "chargram_empty_rows": 0
+   }
+  },
+  "all_zero_tfidf_test_rows": null,
+  "fit": {
+   "split": "train",
+   "n": 600,
+   "texts_sha256": "cc137cd2ce9bdd20f853d73d055e6076365ac98f624e501d8cc3c3ddecb8ddb6",
+   "n_fits": 1
+  },
+  "used_by_head": false,
+  "permutation": null
+ },
+ "head": {
+  "name": "baseline",
+  "param_count": 24606
+ },
+ "training_log": {
+  "best_epoch": 18,
+  "epochs_run": 38,
+  "stopped_early": true,
+  "curve": [
+   {
+    "epoch": 1,
+    "train_loss": 3.257567,
+    "val_macro_f1": 0.385663
+   },
+   {
+    "epoch": 2,
+    "train_loss": 2.152835,
+    "val_macro_f1": 0.62504
+   },
+   {
+    "epoch": 3,
+    "train_loss": 1.231725,
+    "val_macro_f1": 0.724718
+   },
+   {
+    "epoch": 4,
+    "train_loss": 0.649612,
+    "val_macro_f1": 0.755748
+   },
+   {
+    "epoch": 5,
+    "train_loss": 0.34786,
+    "val_macro_f1": 0.776054
+   },
+   {
+    "epoch": 6,
+    "train_loss": 0.186123,
+    "val_macro_f1": 0.779248
+   },
+   {
+    "epoch": 7,
+    "train_loss": 0.105555,
+    "val_macro_f1": 0.80229
+   },
+   {
+    "epoch": 8,
+    "train_loss": 0.072634,
+    "val_macro_f1": 0.807342
+   },
+   {
+    "epoch": 9,
+    "train_loss": 0.048064,
+    "val_macro_f1": 0.814666
+   },
+   {
+    "epoch": 10,
+    "train_loss": 0.039148,
+    "val_macro_f1": 0.806767
+   },
+   {
+    "epoch": 11,
+    "train_loss": 0.029159,
+    "val_macro_f1": 0.812071
+   },
+   {
+    "epoch": 12,
+    "train_loss": 0.023026,
+    "val_macro_f1": 0.807128
+   },
+   {
+    "epoch": 13,
+    "train_loss": 0.01996,
+    "val_macro_f1": 0.814361
+   },
+   {
+    "epoch": 14,
+    "train_loss": 0.017288,
+    "val_macro_f1": 0.817955
+   },
+   {
+    "epoch": 15,
+    "train_loss": 0.016285,
+    "val_macro_f1": 0.819694
+   },
+   {
+    "epoch": 16,
+    "train_loss": 0.014075,
+    "val_macro_f1": 0.815454
+   },
+   {
+    "epoch": 17,
+    "train_loss": 0.012968,
+    "val_macro_f1": 0.813806
+   },
+   {
+    "epoch": 18,
+    "train_loss": 0.010703,
+    "val_macro_f1": 0.825393
+   },
+   {
+    "epoch": 19,
+    "train_loss": 0.010239,
+    "val_macro_f1": 0.816764
+   },
+   {
+    "epoch": 20,
+    "train_loss": 0.009825,
+    "val_macro_f1": 0.818486
+   },
+   {
+    "epoch": 21,
+    "train_loss": 0.009012,
+    "val_macro_f1": 0.817302
+   },
+   {
+    "epoch": 22,
+    "train_loss": 0.008147,
+    "val_macro_f1": 0.820017
+   },
+   {
+    "epoch": 23,
+    "train_loss": 0.007729,
+    "val_macro_f1": 0.821786
+   },
+   {
+    "epoch": 24,
+    "train_loss": 0.007334,
+    "val_macro_f1": 0.823384
+   },
+   {
+    "epoch": 25,
+    "train_loss": 0.006975,
+    "val_macro_f1": 0.821673
+   },
+   {
+    "epoch": 26,
+    "train_loss": 0.006581,
+    "val_macro_f1": 0.823761
+   },
+   {
+    "epoch": 27,
+    "train_loss": 0.006239,
+    "val_macro_f1": 0.820252
+   },
+   {
+    "epoch": 28,
+    "train_loss": 0.00566,
+    "val_macro_f1": 0.822399
+   },
+   {
+    "epoch": 29,
+    "train_loss": 0.005287,
+    "val_macro_f1": 0.819661
+   },
+   {
+    "epoch": 30,
+    "train_loss": 0.005195,
+    "val_macro_f1": 0.82212
+   },
+   {
+    "epoch": 31,
+    "train_loss": 0.004922,
+    "val_macro_f1": 0.821989
+   },
+   {
+    "epoch": 32,
+    "train_loss": 0.00472,
+    "val_macro_f1": 0.822249
+   },
+   {
+    "epoch": 33,
+    "train_loss": 0.00425,
+    "val_macro_f1": 0.823874
+   },
+   {
+    "epoch": 34,
+    "train_loss": 0.0044,
+    "val_macro_f1": 0.822069
+   },
+   {
+    "epoch": 35,
+    "train_loss": 0.003805,
+    "val_macro_f1": 0.823454
+   },
+   {
+    "epoch": 36,
+    "train_loss": 0.004018,
+    "val_macro_f1": 0.823548
+   },
+   {
+    "epoch": 37,
+    "train_loss": 0.003936,
+    "val_macro_f1": 0.820526
+   },
+   {
+    "epoch": 38,
+    "train_loss": 0.003847,
+    "val_macro_f1": 0.82164
+   }
+  ]
+ },
+ "metrics": {
+  "val": {
+   "macro_f1": 0.8253927495828555,
+   "accuracy": 0.8257042253521126,
+   "used_for_selection": true,
+   "n": 568
+  },
+  "val_full_diagnostic": {
+   "macro_f1": 0.8253927495828555,
+   "accuracy": 0.8257042253521126,
+   "used_for_selection": false,
+   "n": 568
+  }
+ },
+ "gate": null,
+ "wall_clock_s": 1.49
+}

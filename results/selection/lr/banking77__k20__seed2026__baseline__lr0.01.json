@@ -1,0 +1,610 @@
+{
+ "run_id": "banking77__k20__seed2026__baseline__lr0.01",
+ "status": "ok",
+ "spec": {
+  "track": "banking77",
+  "k": "20",
+  "seed": 2026,
+  "condition": "baseline",
+  "dirty": false,
+  "lr": 0.01,
+  "evaluate_test": false,
+  "log_dir": "results/selection/lr",
+  "tag": "lr0.01",
+  "head": "baseline"
+ },
+ "dirty": false,
+ "permuted": false,
+ "permutation_mode": null,
+ "git": {
+  "commit": "7e7f8f6443751f41649160f22874f88902f6dd38",
+  "working_tree_dirty": false,
+  "dirty_paths": []
+ },
+ "config": {
+  "track": "banking77",
+  "k": "20",
+  "seed": 2026,
+  "condition": "baseline",
+  "head": "baseline",
+  "dirty": false,
+  "permuted": false,
+  "permutation_mode": null,
+  "training": {
+   "optimizer": "AdamW",
+   "lr": 0.01,
+   "weight_decay": 0.01,
+   "batch_size": 32,
+   "grad_clip": 1.0,
+   "max_epochs": 200,
+   "patience": 20,
+   "lr_schedule": "constant",
+   "selection_metric": "Macro-F1 on the k-matched validation split (val.jsonl)",
+   "loss": "cross-entropy",
+   "threads": 6,
+   "tuning_note": "identical for every head, condition, track and regime; no per-head or per-regime tuning. lr selected once on validation with the baseline head only.",
+   "lr_selection": {
+    "selected_on": "k-matched VALIDATION splits only; test never loaded",
+    "head": "baseline ONLY; applied unchanged to every head and regime",
+    "date": "2026-10-11",
+    "grid": [
+     0.0003,
+     0.001,
+     0.003
+    ],
+    "rule": "highest mean val Macro-F1 over all cells",
+    "cells": {
+     "tracks": [
+      "bnintent30-bn",
+      "bnintent30-en",
+      "banking77"
+     ],
+     "k": [
+      "5",
+      "10",
+      "20",
+      "full"
+     ],
+     "seeds": [
+      13,
+      42,
+      87,
+      100,
+      2026
+     ]
+    },
+    "mean_val_macro_f1": {
+     "0.0003": 0.7722,
+     "0.001": 0.7966,
+     "0.003": 0.7997
+    },
+    "script": "scripts/select_lr.py",
+    "report": "results/tables/lr_selection.md",
+    "runs": "results/selection/lr/"
+   }
+  },
+  "heads": {
+   "d_model": 768,
+   "feat_dim": 518,
+   "dropout": 0.1,
+   "gate_bias_init": 0.0,
+   "baseline_cap_hidden": 1024,
+   "concat_cap_hidden": 512
+  },
+  "features": {
+   "tfidf_dim": 256,
+   "chargram_dim": 256,
+   "stats_dim": 6
+  }
+ },
+ "libraries": {
+  "python": "3.13.3",
+  "numpy": "2.5.3",
+  "scipy": "1.18.1",
+  "scikit-learn": "1.9.1",
+  "torch": "2.14.1+cpu"
+ },
+ "determinism": {
+  "torch_deterministic_algorithms": true,
+  "threads": 6,
+  "seeded": [
+   "random",
+   "numpy",
+   "torch",
+   "shuffle generator"
+  ]
+ },
+ "encoder": {
+  "name": "FacebookAI/xlm-roberta-base",
+  "revision": "e73636d4f797dec63c3081bb6ed5c7b0bb3f2089",
+  "pooling": "mean",
+  "max_length": 128,
+  "cache_sha256": "1c0506da6e923913275b63d90d421d2d36679d4d4626f4fe2901fa10d859e89a"
+ },
+ "splits": {
+  "sha256": {
+   "train": "97f75b8242060ba83d883435cdb5300c78187112628be0ae151e4a2413ad0d5d",
+   "val": "210bf666632e2d91f17dc4609fe9e09dc022236cd144629c37ce5c53012e5040",
+   "val_full": "0da12f41d672b13818cd8cfdcd7b2005eb9a7c491f5763f81cfd81f6a4523a5a"
+  },
+  "sizes": {
+   "train": 1540,
+   "val": 1427,
+   "val_full": 1646
+  },
+  "label_names": [
+   "Refund_not_showing_up",
+   "activate_my_card",
+   "age_limit",
+   "apple_pay_or_google_pay",
+   "atm_support",
+   "automatic_top_up",
+   "balance_not_updated_after_bank_transfer",
+   "balance_not_updated_after_cheque_or_cash_deposit",
+   "beneficiary_not_allowed",
+   "cancel_transfer",
+   "card_about_to_expire",
+   "card_acceptance",
+   "card_arrival",
+   "card_delivery_estimate",
+   "card_linking",
+   "card_not_working",
+   "card_payment_fee_charged",
+   "card_payment_not_recognised",
+   "card_payment_wrong_exchange_rate",
+   "card_swallowed",
+   "cash_withdrawal_charge",
+   "cash_withdrawal_not_recognised",
+   "change_pin",
+   "compromised_card",
+   "contactless_not_working",
+   "country_support",
+   "declined_card_payment",
+   "declined_cash_withdrawal",
+   "declined_transfer",
+   "direct_debit_payment_not_recognised",
+   "disposable_card_limits",
+   "edit_personal_details",
+   "exchange_charge",
+   "exchange_rate",
+   "exchange_via_app",
+   "extra_charge_on_statement",
+   "failed_transfer",
+   "fiat_currency_support",
+   "get_disposable_virtual_card",
+   "get_physical_card",
+   "getting_spare_card",
+   "getting_virtual_card",
+   "lost_or_stolen_card",
+   "lost_or_stolen_phone",
+   "order_physical_card",
+   "passcode_forgotten",
+   "pending_card_payment",
+   "pending_cash_withdrawal",
+   "pending_top_up",
+   "pending_transfer",
+   "pin_blocked",
+   "receiving_money",
+   "request_refund",
+   "reverted_card_payment?",
+   "supported_cards_and_currencies",
+   "terminate_account",
+   "top_up_by_bank_transfer_charge",
+   "top_up_by_card_charge",
+   "top_up_by_cash_or_cheque",
+   "top_up_failed",
+   "top_up_limits",
+   "top_up_reverted",
+   "topping_up_by_card",
+   "transaction_charged_twice",
+   "transfer_fee_charged",
+   "transfer_into_account",
+   "transfer_not_received_by_recipient",
+   "transfer_timing",
+   "unable_to_verify_identity",
+   "verify_my_identity",
+   "verify_source_of_funds",
+   "verify_top_up",
+   "virtual_card_not_working",
+   "visa_or_mastercard",
+   "why_verify_identity",
+   "wrong_amount_of_cash_received",
+   "wrong_exchange_rate_for_cash_withdrawal"
+  ]
+ },
+ "features": {
+  "dims": {
+   "tfidf": 256,
+   "chargram": 256,
+   "stats": 6,
+   "total": 518
+  },
+  "tfidf_vocab_size": 1182,
+  "tfidf_selected": 256,
+  "tfidf_padded_columns": 0,
+  "degenerate_stats": [],
+  "transform_log": {
+   "train": {
+    "n": 1540,
+    "tfidf_empty_rows": 13,
+    "chargram_empty_rows": 0
+   },
+   "val": {
+    "n": 1427,
+    "tfidf_empty_rows": 7,
+    "chargram_empty_rows": 0
+   },
+   "val_full": {
+    "n": 1646,
+    "tfidf_empty_rows": 8,
+    "chargram_empty_rows": 0
+   }
+  },
+  "all_zero_tfidf_test_rows": null,
+  "fit": {
+   "split": "train",
+   "n": 1540,
+   "texts_sha256": "95b7b4f3b510d6a8b0808bb918ec416777b452d36f10715c2c022d1257ac95c0",
+   "n_fits": 1
+  },
+  "used_by_head": false,
+  "permutation": null
+ },
+ "head": {
+  "name": "baseline",
+  "param_count": 60749
+ },
+ "training_log": {
+  "best_epoch": 46,
+  "epochs_run": 66,
+  "stopped_early": true,
+  "curve": [
+   {
+    "epoch": 1,
+    "train_loss": 3.899961,
+    "val_macro_f1": 0.408005
+   },
+   {
+    "epoch": 2,
+    "train_loss": 1.90166,
+    "val_macro_f1": 0.623589
+   },
+   {
+    "epoch": 3,
+    "train_loss": 0.755088,
+    "val_macro_f1": 0.707339
+   },
+   {
+    "epoch": 4,
+    "train_loss": 0.373519,
+    "val_macro_f1": 0.718993
+   },
+   {
+    "epoch": 5,
+    "train_loss": 0.209266,
+    "val_macro_f1": 0.735002
+   },
+   {
+    "epoch": 6,
+    "train_loss": 0.127434,
+    "val_macro_f1": 0.750775
+   },
+   {
+    "epoch": 7,
+    "train_loss": 0.087202,
+    "val_macro_f1": 0.755328
+   },
+   {
+    "epoch": 8,
+    "train_loss": 0.06288,
+    "val_macro_f1": 0.759433
+   },
+   {
+    "epoch": 9,
+    "train_loss": 0.046447,
+    "val_macro_f1": 0.760004
+   },
+   {
+    "epoch": 10,
+    "train_loss": 0.035638,
+    "val_macro_f1": 0.764933
+   },
+   {
+    "epoch": 11,
+    "train_loss": 0.029148,
+    "val_macro_f1": 0.756122
+   },
+   {
+    "epoch": 12,
+    "train_loss": 0.025414,
+    "val_macro_f1": 0.761984
+   },
+   {
+    "epoch": 13,
+    "train_loss": 0.021774,
+    "val_macro_f1": 0.76692
+   },
+   {
+    "epoch": 14,
+    "train_loss": 0.019607,
+    "val_macro_f1": 0.766163
+   },
+   {
+    "epoch": 15,
+    "train_loss": 0.016514,
+    "val_macro_f1": 0.768115
+   },
+   {
+    "epoch": 16,
+    "train_loss": 0.015589,
+    "val_macro_f1": 0.768608
+   },
+   {
+    "epoch": 17,
+    "train_loss": 0.014424,
+    "val_macro_f1": 0.77255
+   },
+   {
+    "epoch": 18,
+    "train_loss": 0.012774,
+    "val_macro_f1": 0.764946
+   },
+   {
+    "epoch": 19,
+    "train_loss": 0.011611,
+    "val_macro_f1": 0.766236
+   },
+   {
+    "epoch": 20,
+    "train_loss": 0.010682,
+    "val_macro_f1": 0.771183
+   },
+   {
+    "epoch": 21,
+    "train_loss": 0.01014,
+    "val_macro_f1": 0.767533
+   },
+   {
+    "epoch": 22,
+    "train_loss": 0.00991,
+    "val_macro_f1": 0.770301
+   },
+   {
+    "epoch": 23,
+    "train_loss": 0.009184,
+    "val_macro_f1": 0.771252
+   },
+   {
+    "epoch": 24,
+    "train_loss": 0.008574,
+    "val_macro_f1": 0.771672
+   },
+   {
+    "epoch": 25,
+    "train_loss": 0.007654,
+    "val_macro_f1": 0.766463
+   },
+   {
+    "epoch": 26,
+    "train_loss": 0.007384,
+    "val_macro_f1": 0.768894
+   },
+   {
+    "epoch": 27,
+    "train_loss": 0.00695,
+    "val_macro_f1": 0.765466
+   },
+   {
+    "epoch": 28,
+    "train_loss": 0.006744,
+    "val_macro_f1": 0.76573
+   },
+   {
+    "epoch": 29,
+    "train_loss": 0.006592,
+    "val_macro_f1": 0.772536
+   },
+   {
+    "epoch": 30,
+    "train_loss": 0.00606,
+    "val_macro_f1": 0.770645
+   },
+   {
+    "epoch": 31,
+    "train_loss": 0.00722,
+    "val_macro_f1": 0.776154
+   },
+   {
+    "epoch": 32,
+    "train_loss": 0.008537,
+    "val_macro_f1": 0.773526
+   },
+   {
+    "epoch": 33,
+    "train_loss": 0.005479,
+    "val_macro_f1": 0.774182
+   },
+   {
+    "epoch": 34,
+    "train_loss": 0.004781,
+    "val_macro_f1": 0.771703
+   },
+   {
+    "epoch": 35,
+    "train_loss": 0.004559,
+    "val_macro_f1": 0.776853
+   },
+   {
+    "epoch": 36,
+    "train_loss": 0.004447,
+    "val_macro_f1": 0.775091
+   },
+   {
+    "epoch": 37,
+    "train_loss": 0.004287,
+    "val_macro_f1": 0.77678
+   },
+   {
+    "epoch": 38,
+    "train_loss": 0.004017,
+    "val_macro_f1": 0.776758
+   },
+   {
+    "epoch": 39,
+    "train_loss": 0.003953,
+    "val_macro_f1": 0.772083
+   },
+   {
+    "epoch": 40,
+    "train_loss": 0.003958,
+    "val_macro_f1": 0.775116
+   },
+   {
+    "epoch": 41,
+    "train_loss": 0.003934,
+    "val_macro_f1": 0.772994
+   },
+   {
+    "epoch": 42,
+    "train_loss": 0.003937,
+    "val_macro_f1": 0.77075
+   },
+   {
+    "epoch": 43,
+    "train_loss": 0.003779,
+    "val_macro_f1": 0.775194
+   },
+   {
+    "epoch": 44,
+    "train_loss": 0.003414,
+    "val_macro_f1": 0.773538
+   },
+   {
+    "epoch": 45,
+    "train_loss": 0.003464,
+    "val_macro_f1": 0.776093
+   },
+   {
+    "epoch": 46,
+    "train_loss": 0.003202,
+    "val_macro_f1": 0.77862
+   },
+   {
+    "epoch": 47,
+    "train_loss": 0.003023,
+    "val_macro_f1": 0.769961
+   },
+   {
+    "epoch": 48,
+    "train_loss": 0.003091,
+    "val_macro_f1": 0.776261
+   },
+   {
+    "epoch": 49,
+    "train_loss": 0.00292,
+    "val_macro_f1": 0.778605
+   },
+   {
+    "epoch": 50,
+    "train_loss": 0.002858,
+    "val_macro_f1": 0.774697
+   },
+   {
+    "epoch": 51,
+    "train_loss": 0.002757,
+    "val_macro_f1": 0.775297
+   },
+   {
+    "epoch": 52,
+    "train_loss": 0.002669,
+    "val_macro_f1": 0.775245
+   },
+   {
+    "epoch": 53,
+    "train_loss": 0.002565,
+    "val_macro_f1": 0.77204
+   },
+   {
+    "epoch": 54,
+    "train_loss": 0.003065,
+    "val_macro_f1": 0.769287
+   },
+   {
+    "epoch": 55,
+    "train_loss": 0.0032,
+    "val_macro_f1": 0.772405
+   },
+   {
+    "epoch": 56,
+    "train_loss": 0.002634,
+    "val_macro_f1": 0.771049
+   },
+   {
+    "epoch": 57,
+    "train_loss": 0.002367,
+    "val_macro_f1": 0.77248
+   },
+   {
+    "epoch": 58,
+    "train_loss": 0.002269,
+    "val_macro_f1": 0.771703
+   },
+   {
+    "epoch": 59,
+    "train_loss": 0.002343,
+    "val_macro_f1": 0.773566
+   },
+   {
+    "epoch": 60,
+    "train_loss": 0.002376,
+    "val_macro_f1": 0.773185
+   },
+   {
+    "epoch": 61,
+    "train_loss": 0.002174,
+    "val_macro_f1": 0.774439
+   },
+   {
+    "epoch": 62,
+    "train_loss": 0.002065,
+    "val_macro_f1": 0.770656
+   },
+   {
+    "epoch": 63,
+    "train_loss": 0.002004,
+    "val_macro_f1": 0.773298
+   },
+   {
+    "epoch": 64,
+    "train_loss": 0.001735,
+    "val_macro_f1": 0.77406
+   },
+   {
+    "epoch": 65,
+    "train_loss": 0.001825,
+    "val_macro_f1": 0.772164
+   },
+   {
+    "epoch": 66,
+    "train_loss": 0.00176,
+    "val_macro_f1": 0.776324
+   }
+  ]
+ },
+ "metrics": {
+  "val": {
+   "macro_f1": 0.7786197190052947,
+   "accuracy": 0.7778556412053259,
+   "used_for_selection": true,
+   "n": 1427
+  },
+  "val_full_diagnostic": {
+   "macro_f1": 0.7776247391254224,
+   "accuracy": 0.772782503037667,
+   "used_for_selection": false,
+   "n": 1646
+  }
+ },
+ "gate": null,
+ "wall_clock_s": 6.13
+}

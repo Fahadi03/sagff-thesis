@@ -107,12 +107,18 @@ training:
   lr_selection:
     selected_on: k-matched VALIDATION splits only; test never loaded
     head: baseline ONLY; applied unchanged to every head and regime
-    date: '2026-10-11'
-    grid:
+    date: '2026-10-12'
+    git_commit: 7e7f8f6443751f41649160f22874f88902f6dd38
+    working_tree_clean: true
+    grid_final:
     - 0.0003
     - 0.001
     - 0.003
-    rule: highest mean val Macro-F1 over all cells
+    - 0.01
+    bracketing_rounds: 1
+    bracketed: true
+    rule: highest mean val Macro-F1 over all cells; extend the grid while the winner
+      is an edge
     cells:
       tracks:
       - bnintent30-bn
@@ -133,6 +139,9 @@ training:
       '0.0003': 0.7722
       '0.001': 0.7966
       '0.003': 0.7997
+      '0.01': 0.7988
     script: scripts/select_lr.py
     report: results/tables/lr_selection.md
     runs: results/selection/lr/
+    history: '2026-10-11: grid {3e-4,1e-3,3e-3} -> 3e-3, run from an uncommitted tree
+      (logs in results/selection/lr_218bd44_uncommitted/); this run supersedes it'
