@@ -255,9 +255,9 @@ not drown in five heads.
 actually necessary, or would plain concatenation have done the same?* It is not
 optional.
 
-Why the capped heads exist: `sagff`'s head is roughly two orders of magnitude
-larger than `baseline`'s, and about 2.8x larger than `concat`'s, because W_g
-alone exceeds W_p. Without matched controls, a weak `sagff` result at low k
+Why the capped heads exist: `sagff`'s head is far larger than `baseline`'s, and
+several times larger than `concat`'s, because W_g alone exceeds W_p (exact
+ratios: `results/tables/head_capacity.md`). Without matched controls, a weak `sagff` result at low k
 could be blamed on a large head trained on few examples, and a `sagff` > `concat`
 gap on the gate's extra parameters. The capped heads make both comparisons
 tests of information and of gating rather than of capacity.

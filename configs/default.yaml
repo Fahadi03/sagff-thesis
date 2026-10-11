@@ -2,24 +2,32 @@
 # training.lr were selected on validation only and are FROZEN: do not edit by hand.
 features:
   tfidf_dim: 256
-  chargram_dim: 512
+  chargram_dim: 256
   stats_dim: 6
   selection:
     selected_on: k-matched VALIDATION splits only; test never opened
     date: '2026-10-11'
+    git_commit: 44bd2241d474f5245505b9b983021ca32ddc9371
+    working_tree_clean: true
     script: scripts/select_feature_dims.py
     report: results/tables/feature_dim_selection.md
+    scores: results/selection/feature_dims/scores.json
     method: handcrafted branch alone (multinomial logistic regression on h_feat),
       val Macro-F1
-    grid:
+    grid_final:
       tfidf_dim:
+      - 128
       - 256
       - 512
       - 1024
       chargram_dim:
+      - 128
+      - 256
       - 512
       - 1024
       - 2048
+    bracketing_rounds: 2
+    bracketed: true
     cells:
       tracks:
       - bnintent30-bn
@@ -34,16 +42,18 @@ features:
       - 100
       - 2026
       n_seeds: 5
-    history: first selection (2026-10-11) used seeds 13, 42 only and chose tfidf 256
-      / chargram 1024; re-run with all 5 seeds (Task H)
     rule: smallest tfidf_dim + chargram_dim with mean >= best mean - SD(best over
-      seeds)
+      seeds); extend a dimension downward while the choice sits on its lower edge
     best:
       tfidf_dim: 256
       chargram_dim: 2048
       mean_val_macro_f1: 0.71
     sd_best: 0.0123
-    chosen_mean_val_macro_f1: 0.7055
+    chosen_mean_val_macro_f1: 0.6992
+    plateau: 12 of 20 configurations lie within one SD (0.0123) of the best; mean
+      validation Macro-F1 spans 0.6778-0.7100 across the whole grid (a range of 0.0322).
+    history: '2026-10-11: 3x3 grid, seeds 13/42 -> 256/1024; 3x3 grid, 5 seeds ->
+      256/512 (both from uncommitted trees); this run supersedes them'
 heads:
   order:
   - baseline
@@ -52,12 +62,12 @@ heads:
   - concat-cap
   - baseline-cap
   d_model: 768
-  feat_dim: 774
+  feat_dim: 518
   dropout: 0.1
   gate_bias_init: 0.0
   gate_bias_init_note: explicit constant for W_g's bias so g ~ 0.5 at init; W_g weights
     keep PyTorch default init under the run seed
-  baseline_cap_hidden: 1152
+  baseline_cap_hidden: 1024
   concat_cap_hidden: 512
   matching:
     baseline-cap: parameter count within 20% of sagff (src.models, widths rounded
@@ -69,17 +79,17 @@ heads:
       30_classes: 24606
       77_classes: 60749
     concat:
-      30_classes: 644382
-      77_classes: 716621
+      30_classes: 447774
+      77_classes: 520013
     sagff:
-      30_classes: 1801758
-      77_classes: 1837901
+      30_classes: 1605150
+      77_classes: 1641293
     concat-cap:
-      30_classes: 1803806
-      77_classes: 1839949
+      30_classes: 1607198
+      77_classes: 1643341
     baseline-cap:
-      30_classes: 1797534
-      77_classes: 1833677
+      30_classes: 1600798
+      77_classes: 1636941
 training:
   optimizer: AdamW
   lr: 0.003

@@ -6,7 +6,7 @@ Every cell is the mean (min-max) over seeds [13, 42, 87, 100, 2026]; a single va
 
 | track, k | train / test rows | tfidf dim: selected terms + pad | train vocab | chargram dim | stats dim | total dim | sparsity train % | sparsity test % | test-token OOV vs train vocab % | OOV vs selected terms % | all-zero tfidf test rows | all-zero chargram test rows | degenerate stats | test rows colliding with a train row of a different dedup key |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| bnintent30-bn k=5 | 150 / 856 | 256: 256 + 0 | 388 (379-401) | 512 | 6 | 774 | 91.13 (91.01-91.40) | 91.49 (91.41-91.54) | 28.1 (27.6-28.5) | 60.0 (52.3-63.5) | 77.4 (41.0-110.0) | 0.0 | none; uppercase_ratio | 0.0 |
-| bnintent30-bn k=full | 2672 / 856 | 256: 256 + 0 | 2174 | 512 | 6 | 774 | 90.88 | 91.28 | 9.9 | 45.3 | 31.0 | 0.0 | none | 0.0 |
-| bnintent30-en k=5 | 150 / 856 | 256: 256 + 0 | 335 (333-340) | 512 | 6 | 774 | 91.69 (91.56-91.83) | 92.03 (91.98-92.07) | 19.3 (18.7-20.4) | 56.5 (51.5-61.2) | 38.6 (34.0-52.0) | 0.0 | uppercase_ratio | 0.0 |
-| bnintent30-en k=full | 2672 / 856 | 256: 256 + 0 | 1745 | 512 | 6 | 774 | 91.52 | 91.81 | 6.8 | 30.8 | 12.0 | 0.0 | uppercase_ratio | 0.0 |
+| bnintent30-bn k=5 | 150 / 856 | 256: 256 + 0 | 388 (379-401) | 256 | 6 | 518 | 87.58 (87.43-87.90) | 88.06 (87.93-88.13) | 28.1 (27.6-28.5) | 60.0 (52.3-63.5) | 77.4 (41.0-110.0) | 0.0 | none; uppercase_ratio | 0.0 |
+| bnintent30-bn k=full | 2672 / 856 | 256: 256 + 0 | 2174 | 256 | 6 | 518 | 87.21 | 87.74 | 9.9 | 45.3 | 31.0 | 0.0 | none | 0.0 |
+| bnintent30-en k=5 | 150 / 856 | 256: 256 + 0 | 335 (333-340) | 256 | 6 | 518 | 88.20 (87.97-88.38) | 88.69 (88.63-88.75) | 19.3 (18.7-20.4) | 56.5 (51.5-61.2) | 38.6 (34.0-52.0) | 0.0 | uppercase_ratio | 0.0 |
+| bnintent30-en k=full | 2672 / 856 | 256: 256 + 0 | 1745 | 256 | 6 | 518 | 87.94 | 88.37 | 6.8 | 30.8 | 12.0 | 0.0 | uppercase_ratio | 0.0 |
