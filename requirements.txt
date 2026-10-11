@@ -1,4 +1,8 @@
-# Stage 1 (data). Later stages add their own dependencies.
+# Stage 1 (data)
 pandas==3.0.6
 PyYAML==6.0.3
 pytest==9.1.1
+# Stage 2 (features)
+scikit-learn==1.9.1
+scipy==1.18.1
+numpy==2.5.3

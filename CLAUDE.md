@@ -231,11 +231,17 @@ variant). Rationale, which belongs in the paper: TfidfVectorizer lowercases and
 discards punctuation by default, so to the handcrafted-feature branch "How do I
 unblock my PIN?" and "how do i unblock my pin" are the same input. A dedup key
 weaker than the model's own normalization would leave leakage in precisely the
-branch this paper measures, and its effect would be largest at small k where a
-handful of leaked rows is a large fraction of the training set. Principle: the
-dedup key must be at least as aggressive as the most aggressive normalization
-any model component applies. Report duplicate counts under BOTH exact-string and
-normalized keys so the difference is visible in the paper.
+branch this paper measures. Contamination is only active to the extent that a
+leaked row's training counterpart is actually sampled, so the contaminated
+fraction of the test set grows with k: in the leaky condition, 7.0 on average
+(range 2-11 across the five seeds) of 886 BNIntent30-bn test rows have a
+training counterpart at k=5, rising to 85 at k=full
+(`results/tables/leakage_dose.md`). The principle stands independently of that
+magnitude: the deduplication key must be at least as aggressive as the most
+aggressive normalization any model component applies, because a weaker key
+leaves contamination in precisely the branch this paper measures. Report
+duplicate counts under BOTH exact-string and normalized keys so the difference
+is visible in the paper.
 
 Apply in this order, at row level, to the union of problems found in either
 language (R9):
@@ -252,16 +258,16 @@ language (R9):
    If one normalized key appears in more than one split, keep the occurrence in
    the EVALUATION split and drop the training or val occurrence. Rationale for
    the direction, which must be in the paper: Macro-F1 weights all classes
-   equally, so removing test rows destabilises the metric, whereas losing ~100
-   rows from a ~2,950-row training pool costs almost nothing, and the k-shot
-   regimes sample only k per class anyway. Keep the measuring instrument intact;
+   equally, so removing test rows destabilises the metric, whereas losing a
+   small fraction of the much larger training pool costs almost nothing, and the
+   k-shot regimes sample only k per class anyway. Keep the measuring instrument intact;
    spend from the training material.
 4. **Step 4.** Resolve within-split duplicates. If one normalized key appears
    more than once inside the same split, keep the lowest uid and drop the rest.
    Rationale: machine translation collapses distinct English sentences onto one
    Bangla sentence ("please set an alarm" and "set an alarm" both become the
-   same Bangla string), so Bangla has within-split duplicates where English has
-   none. Left in place, a Bangla k-shot train set would hold fewer DISTINCT
+   same Bangla string), so Bangla has far more within-split duplicates than
+   English (counts in `results/tables/data_cleaning.md`). Left in place, a Bangla k-shot train set would hold fewer DISTINCT
    utterances than its English counterpart at the same k — then k does not mean
    the same thing in the two tracks, so the two lines in the paper's main figure
    no longer share an x-axis, and any English-vs-Bangla difference would be
@@ -309,6 +315,13 @@ Additionally, each run logs metrics on the FULL val portion under the key
 `val_full_diagnostic`, explicitly marked `"used_for_selection": false`. This
 answers "how much would a larger validation set have helped?" without
 contaminating the headline claim.
+
+The k-matching constraint binds at k=5 and k=10. BNIntent30 holds at most 20
+validation rows per class, so at k=20 and k=full the k-matched validation set
+equals the full validation portion. At k=20 the validation set is therefore of
+comparable size to the training set, which matches established few-shot practice
+of using a development set the same size as the training set (Gao et al., 2021 —
+verify this citation before use).
 
 
 ---

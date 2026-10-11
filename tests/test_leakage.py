@@ -14,10 +14,48 @@ KS_ORDER = ("5", "10", "20", "full")
 
 
 # 1 ------------------------------------------------------------------------- #
-@pytest.mark.skip(reason="Stage 2: needs src/features.py. Will assert that a vectorizer fit on "
-                         "train yields no feature index >= the train-fit vocabulary size on test.")
-def test_vectorizer_indices_within_train_vocabulary():
-    pass
+@pytest.mark.parametrize("track", TRACKS)
+def test_vectorizer_indices_within_train_vocabulary(track, split_files):
+    """A pipeline fit on train, applied to val/test, never produces a TF-IDF column outside
+    the train-fit (selected) vocabulary; padding columns stay zero; the vocabulary does
+    not grow at transform time; every split has the fixed total dimension."""
+    from src.features import TFIDF_DIM, TOTAL_DIM, featurize_run
+    problems = []
+    for (t, k, seed), files in split_files.items():
+        if t != track:
+            continue
+        pipeline = None
+        try:
+            pipeline, X = featurize_run(files)
+        except Exception as e:  # report, don't hide
+            problems.append(f"k={k} seed={seed}: featurize_run raised {e!r}")
+            continue
+        vocab_before = len(pipeline._tfidf.vocabulary_)
+        n_sel = pipeline.tfidf_selected
+        for name, M in X.items():
+            if M.shape[1] != TOTAL_DIM:
+                problems.append(f"k={k} seed={seed} {name}: dim {M.shape[1]} != {TOTAL_DIM}")
+            cols = M[:, :TFIDF_DIM].tocoo().col
+            if cols.size and cols.max() >= n_sel:
+                problems.append(f"k={k} seed={seed} {name}: TF-IDF column {cols.max()} >= "
+                                f"train-fit vocabulary size {n_sel}")
+        if len(pipeline._tfidf.vocabulary_) != vocab_before:
+            problems.append(f"k={k} seed={seed}: vocabulary grew during transform")
+    check(problems, f"[{track}] feature indices outside the train-fit vocabulary")
+
+
+def test_pipeline_refuses_misuse():
+    """R1 structurally: no transform before fit, no fit on a non-train split, no refit."""
+    from src.features import (FeaturesAlreadyFittedError, FeaturesNotFittedError,
+                              HandcraftedFeatures)
+    with pytest.raises(FeaturesNotFittedError):
+        HandcraftedFeatures().transform(["x"])
+    for bad in ("test", "val", "val_full", "train+val"):
+        with pytest.raises(ValueError, match="TRAIN split only"):
+            HandcraftedFeatures().fit(["a b"], [0], split=bad)
+    p = HandcraftedFeatures().fit(["a b", "c d"], [0, 1], split="train")
+    with pytest.raises(FeaturesAlreadyFittedError):
+        p.fit(["e f", "g h"], [0, 1], split="train")
 
 
 # 2 ------------------------------------------------------------------------- #
@@ -124,8 +162,37 @@ def test_make_splits_reproduces_manifest(condition, tmp_path, manifest, dirty_ma
 
 
 # 5 ------------------------------------------------------------------------- #
-@pytest.mark.skip(reason="Stage 2: needs src/features.py and src/train.py. Will assert the fitted "
-                         "feature pipeline used at test time IS the train-time object (identity "
-                         "check, not a refit).")
-def test_test_time_pipeline_is_train_fitted_object():
-    pass
+def test_test_time_pipeline_is_train_fitted_object(split_files, monkeypatch):
+    """Identity, not a refit: within one run, fit is called exactly once and every split,
+    test included, is transformed by that same fitted object, whose fitted state the
+    transforms do not change."""
+    from src.features import HandcraftedFeatures, _fingerprint, featurize_run
+    calls = []
+    original_fit = HandcraftedFeatures.fit
+
+    def counting_fit(self, *a, **kw):
+        calls.append(id(self))
+        return original_fit(self, *a, **kw)
+
+    monkeypatch.setattr(HandcraftedFeatures, "fit", counting_fit)
+    problems = []
+    for key in [(t, k, 13) for t in TRACKS for k in KS_ORDER]:
+        calls.clear()
+        pipeline, _ = featurize_run(split_files[key])
+        logged = {name: v["transformed_by"] for name, v in pipeline.transform_log.items()}
+        if calls != [id(pipeline)]:
+            problems.append(f"{key}: fit called {len(calls)} time(s) (expected once, on the "
+                            "returned object)")
+        if pipeline.n_fits != 1:
+            problems.append(f"{key}: n_fits={pipeline.n_fits}")
+        if set(logged) != set(split_files[key]) or set(logged.values()) != {id(pipeline)}:
+            problems.append(f"{key}: a split was transformed by a different object: {logged}")
+        snapshot = (tuple(pipeline.selected_terms), pipeline._scaler.mean_.tobytes(),
+                    pipeline._char_idf.idf_.tobytes())
+        pipeline.transform([r["text"] for r in split_files[key]["test"]])
+        if snapshot != (tuple(pipeline.selected_terms), pipeline._scaler.mean_.tobytes(),
+                        pipeline._char_idf.idf_.tobytes()):
+            problems.append(f"{key}: fitted state changed when transforming test")
+        if pipeline.train_fingerprint != _fingerprint([r["text"] for r in split_files[key]["train"]]):
+            problems.append(f"{key}: pipeline was not fit on exactly the train split")
+    check(problems, "test-time feature pipeline is not the train-fitted object")

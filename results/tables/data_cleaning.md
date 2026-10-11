@@ -179,6 +179,31 @@ Raw: 13,083 rows (10,003 train / 3,080 test; no official val). Step 1 does not a
 | wrong_amount_of_cash_received | 180/40 | 180/40 | 0/0 | 150/30/40 |
 | wrong_exchange_rate_for_cash_withdrawal | 163/40 | 163/40 | 0/0 | 136/27/40 |
 
+## Duplicate counts under three comparison-key levels
+
+Rows that step 3 (cross-split) and step 4 (within-split) would remove, as total (train/val/test). Key 1 = byte-for-byte identical string (`byte_key`); key 2 = identical after collapsing whitespace only (`exact_key`, the Stage 1 key); key 3 = the normalized key that is actually applied (`norm_key`: NFC, lowercase, punctuation -> space, whitespace collapsed). Each row uses ONE track's text only, on exactly the input the applied step received, so the BNIntent30 rows differ from the applied union in the step tables above. Keys 1 and 2 decide nothing.
+
+| track | step | key 1: byte-for-byte exact | key 2: whitespace-collapsed exact | key 3: normalized (norm_key, applied) |
+| --- | --- | --- | --- | --- |
+| bnintent30-en | 3 cross-split | 0 (0/0/0) | 0 (0/0/0) | 21 (19/2/0) |
+| bnintent30-en | 4 within-split | 0 (0/0/0) | 0 (0/0/0) | 18 (18/0/0) |
+| bnintent30-bn | 3 cross-split | 123 (106/17/0) | 123 (106/17/0) | 143 (123/20/0) |
+| bnintent30-bn | 4 within-split | 103 (81/2/20) | 103 (81/2/20) | 118 (96/2/20) |
+| banking77 | 3 cross-split | 0 (0/0/0) | 7 (7/0/0) | 25 (25/0/0) |
+| banking77 | 4 within-split | 0 (0/0/0) | 5 (4/0/1) | 31 (28/0/3) |
+
+## Test rows removed, and why
+
+- **BNIntent30 (both tracks):** step 1 removed 14 (untranslated placeholders); step 2 removed 4 (label conflicts: unanswerable items, every prediction would be scored wrong); step 3 removed 0 (by design: priority test > val > train keeps the evaluation copy); step 4 removed 20 (duplicate test items: the lowest-uid copy of each key is kept).
+- **BANKING77:** step 2 removed 2 (label conflicts: unanswerable items, every prediction would be scored wrong); step 3 removed 0 (by design: priority test > val > train keeps the evaluation copy); step 4 removed 3 (duplicate test items: the lowest-uid copy of each key is kept).
+- **Cost of R9 on the English test set:** using English text alone, step 4 would remove 0 test rows. The BNIntent30 step-4 test removals are triggered by the Bangla side; because both tracks must hold identical rows (R9), the paired English rows go too, although their English texts are distinct. So the English test set loses distinct items to keep the comparison parallel.
+
+| track | test rows | test rows per class (min-max) |
+| --- | --- | --- |
+| bnintent30-en | 862 | 25-30 |
+| bnintent30-bn | 862 | 25-30 |
+| banking77 | 3075 | 39-40 |
+
 ## Smallest training classes after cleaning
 
 Assertion: every class in every track keeps >= 20 training rows (passes, or this report would not exist).

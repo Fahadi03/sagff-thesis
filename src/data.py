@@ -74,6 +74,18 @@ def exact_key(s: str) -> str:
     return " ".join(s.split())
 
 
+def byte_key(s: str) -> str:
+    """Byte-for-byte identical string. Reporting only; never decides anything."""
+    return s
+
+
+# The three comparison-key levels reported side by side (Task B). Only the last
+# one is ever used to decide anything.
+REPORT_KEYS = (("byte-for-byte exact", byte_key),
+               ("whitespace-collapsed exact", exact_key),
+               ("normalized (norm_key, applied)", norm_key))
+
+
 def hash_key(*parts: str) -> str:
     """Version-independent deterministic ordering key (no RNG library involved)."""
     return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
@@ -197,7 +209,7 @@ def apply_steps_2_to_4(rows, fields) -> tuple[list[dict], list[dict]]:
         kept, dropped = fn(rows, fields, norm_key)
         _, dropped_exact = fn(rows, fields, exact_key)
         records.append({
-            "step": num, "name": name,
+            "step": num, "name": name, "_input": rows, "_fn": fn,
             "removed": _counts_by_split(dropped, rows),
             "removed_exact_key": _counts_by_split(dropped_exact, rows),
             "by_language": _trigger_counts(dropped, fields),
@@ -390,6 +402,59 @@ def _b77_per_class_table(raw, clean) -> list[str]:
     return L
 
 
+def _key_level_table(rep: dict) -> list[str]:
+    """Task B: rows that step 3 / step 4 would remove under each key level, using
+    ONE track's text only, evaluated on exactly the input the applied step got."""
+    per_track = (("bnintent30-en", rep["bnintent30"], {"en": "text"}),
+                 ("bnintent30-bn", rep["bnintent30"], {"bn": "bn_text"}),
+                 ("banking77", rep["banking77"], {"en": "text"}))
+    head = ["track", "step"] + [f"key {i + 1}: {name}" for i, (name, _) in enumerate(REPORT_KEYS)]
+    L = [_row(head), _row(["---"] * len(head))]
+    for track, drep, fields in per_track:
+        for s in drep["steps"]:
+            if s["step"] not in (3, 4):
+                continue
+            label = "3 cross-split" if s["step"] == 3 else "4 within-split"
+            cells = []
+            for _, key in REPORT_KEYS:
+                _, dropped = s["_fn"](s["_input"], fields, key)
+                c = _counts_by_split(dropped, s["_input"])
+                cells.append(f"{sum(c.values())} ({_fmt(c)})")
+            L.append(_row([track, label] + cells))
+    return L
+
+
+def _test_removal_note(tracks: dict, rep: dict) -> list[str]:
+    """Task C: which test rows were removed, and why; final test per-class range."""
+    L = ["## Test rows removed, and why", ""]
+    for name, drep in (("BNIntent30 (both tracks)", rep["bnintent30"]),
+                       ("BANKING77", rep["banking77"])):
+        t = {s["step"]: s["removed"]["test"] for s in drep["steps"]}
+        parts = []
+        if 1 in t:
+            parts.append(f"step 1 removed {t[1]} (untranslated placeholders)")
+        parts += [f"step 2 removed {t[2]} (label conflicts: unanswerable items, every "
+                  "prediction would be scored wrong)",
+                  f"step 3 removed {t[3]} (by design: priority test > val > train keeps the "
+                  "evaluation copy)",
+                  f"step 4 removed {t[4]} (duplicate test items: the lowest-uid copy of each "
+                  "key is kept)"]
+        L.append(f"- **{name}:** " + "; ".join(parts) + ".")
+    _, bn_only = step4_within_split(next(s["_input"] for s in rep["bnintent30"]["steps"]
+                                         if s["step"] == 4), {"en": "text"})
+    en_test = sum(1 for u in bn_only if u in {r["uid"] for r in rep["bn_raw"] if r["split"] == "test"})
+    L.append(f"- **Cost of R9 on the English test set:** using English text alone, step 4 would "
+             f"remove {en_test} test rows. The BNIntent30 step-4 test removals are triggered by "
+             "the Bangla side; because both tracks must hold identical rows (R9), the paired "
+             "English rows go too, although their English texts are distinct. So the English test "
+             "set loses distinct items to keep the comparison parallel.")
+    L += ["", _row(["track", "test rows", "test rows per class (min-max)"]), _row(["---"] * 3)]
+    for name, tr in tracks.items():
+        c = Counter(r["label_id"] for r in tr["rows"] if r["split"] == "test")
+        L.append(_row([name, sum(c.values()), f"{min(c.values())}-{max(c.values())}"]))
+    return L + [""]
+
+
 def write_report(tracks: dict, rep: dict, data_cfg: dict | None = None) -> str:
     br, b7 = rep["bnintent30"], rep["banking77"]
     L = ["# Data cleaning report", "",
@@ -443,7 +508,17 @@ def write_report(tracks: dict, rep: dict, data_cfg: dict | None = None) -> str:
           "cleaning and moves rows, it removes none.", ""]
     L += _b77_per_class_table(rep["b77_raw"], rep["b77_clean"])
 
-    L += ["", "## Smallest training classes after cleaning", "",
+    L += ["", "## Duplicate counts under three comparison-key levels", "",
+          "Rows that step 3 (cross-split) and step 4 (within-split) would remove, as total "
+          "(train/val/test). Key 1 = byte-for-byte identical string (`byte_key`); key 2 = "
+          "identical after collapsing whitespace only (`exact_key`, the Stage 1 key); key 3 = "
+          "the normalized key that is actually applied (`norm_key`: NFC, lowercase, punctuation "
+          "-> space, whitespace collapsed). Each row uses ONE track's text only, on exactly the "
+          "input the applied step received, so the BNIntent30 rows differ from the applied "
+          "union in the step tables above. Keys 1 and 2 decide nothing.", ""]
+    L += _key_level_table(rep)
+    L += [""] + _test_removal_note(tracks, rep)
+    L += ["## Smallest training classes after cleaning", "",
           f"Assertion: every class in every track keeps >= {MIN_TRAIN_PER_CLASS} training rows "
           "(passes, or this report would not exist).", "",
           _row(["track", "1st", "2nd", "3rd"]), _row(["---"] * 4)]
