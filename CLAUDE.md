@@ -738,8 +738,8 @@ grid if anything fails.**
 ## 10. Pre-specified analyses
 
 **Fixed before any grid run.** This section was committed before a single grid
-run existed; the paper names that commit (`git log --diff-filter=A -S
-"## 10. Pre-specified analyses" -- CLAUDE.md`). Choosing statistics after
+run existed; the paper names that commit (`git log --format=%h -S
+"## 10. Pre-specified analyses" -- CLAUDE.md` prints it: 44bd224). Choosing statistics after
 seeing results is p-hacking; fixing them beforehand is this paper's strongest
 integrity claim. Nothing here may be changed after the grid starts. Any analysis
 not listed here is reported as exploratory and labelled as such.
