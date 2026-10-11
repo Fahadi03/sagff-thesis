@@ -500,6 +500,19 @@ the choice was bracketed, and are frozen in `configs/default.yaml`
 (`scripts/select_feature_dims.py`, `results/tables/feature_dim_selection.md`,
 which also states how flat performance is across the grid).
 
+**One F for all tracks — BANKING77 check (Task Q).** The dimensions were selected
+on the two 30-class tracks. The same grid, method and one-SD rule run on
+`banking77` alone (`results/tables/feature_dim_check_banking77.md`, validation
+only) place the frozen configuration just OUTSIDE BANKING77's own one-SD plateau:
+narrowly (about a fifth of BANKING77's seed SD below its threshold), not clearly.
+Under the rule "when uncertain, take the option that weakens our claim", one F is
+kept for every track: a per-track F would add a selection step in favour of the
+handcrafted branch, whereas the frozen F can only disadvantage that branch on
+BANKING77. Consequence, which the paper states: on BANKING77 the handcrafted
+branch runs slightly below its own validation optimum, so a weak handcrafted
+result there may partly reflect this and must not by itself be read as
+"handcrafted features do not transfer".
+
 `uppercase_ratio` stays in every track. As measured
 (`results/tables/feature_overview.md`), the column is degenerate (constant on the
 train split) in every `bnintent30-en` split because the CLINC150 source text is
