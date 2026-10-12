@@ -40,3 +40,12 @@ variation. Under the predicted direction of the k-trend, the primary
 would: the stopping point can only suppress the predicted effect, not inflate it.
 We report the k-trend on all three readouts (best epoch, final epoch,
 convergence-anchored).
+
+**Holm family size: a typographical error in the registration.** The registered
+text (commit `44bd224`) states that the multiplicity family consists of nine tests
+while enumerating eight (S1 for three datasets, S2a, S2b, S3, S4, S5). This is a
+typographical error in the registration, not a change of plan. The conservative
+reading, m = 9, was used throughout for every reported Holm-adjusted p-value and
+status; Holm adjustment with m = 8 is reported separately as exploratory. No test's
+status differs between the two (`results/tables/T2_preregistered_tests.md`, which
+computes this comparison).

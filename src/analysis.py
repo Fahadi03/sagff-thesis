@@ -116,7 +116,8 @@ def msd(vals: list[float], fmt: str = "{:.3f}") -> str:
     if not vals:
         return "n/a"
     sd = statistics.stdev(vals) if len(vals) > 1 else 0.0
-    return f"{fmt.format(statistics.mean(vals))} ± {fmt.format(sd)}" + ("" if len(vals) == len(SEEDS) else f" (n={len(vals)})")
+    sd_fmt = fmt.replace("+", "")  # an SD has no sign
+    return f"{fmt.format(statistics.mean(vals))} ± {sd_fmt.format(sd)}" + ("" if len(vals) == len(SEEDS) else f" (n={len(vals)})")
 
 
 def write(name: str, lines: list[str]) -> str:
@@ -162,9 +163,20 @@ def holm(ps: list[float], m: int) -> list[float]:
     return adj
 
 
-def observed(res: dict) -> str:
-    v = res["rho"] if res["kind"] == "Spearman" else res["rank_biserial"]
+def _sign(v: float) -> str:
     return "> 0" if v > 0 else ("< 0" if v < 0 else "0")
+
+
+def observed(res: dict) -> str:
+    """Spearman: sign of rho. Wilcoxon: sign of the rank-biserial correlation, UNLESS
+    the median paired difference has the other sign; then the direction is reported
+    as ambiguous with both signs, never resolved in either favour."""
+    if res["kind"] == "Spearman":
+        return _sign(res["rho"])
+    rb, med = _sign(res["rank_biserial"]), _sign(res["median_diff"])
+    if rb != med:
+        return f"ambiguous: median paired difference {med}, rank-biserial {rb}"
+    return rb
 
 
 def status(predicted: str | None, obs: str, p_holm: float) -> str:
@@ -172,6 +184,8 @@ def status(predicted: str | None, obs: str, p_holm: float) -> str:
         return "no prediction"
     if p_holm >= ALPHA:
         return "non-significant"
+    if obs.startswith("ambiguous"):
+        return "significant, direction ambiguous"
     return "met" if obs == predicted else "failed"
 
 
@@ -250,6 +264,7 @@ def registered_tests(R: dict, dropped: list) -> dict:
             x["p_holm"], x["p_holm_m8"] = h9, h8
             x["observed"] = observed(x)
             x["status"] = status(x["predicted"], x["observed"], x["p_holm"])
+            x["status_m8"] = status(x["predicted"], x["observed"], x["p_holm_m8"])
         out[readout] = tests
     return out
 
@@ -305,6 +320,12 @@ def t2(tests: dict, desc: list[dict]) -> str:
          "= rho. Holm-adjusted p within each readout's family, m = 9 as stated in §10 (the §10 list "
          "enumerates eight tests; m = 8 is reported in the exploratory section). Status uses the "
          "Holm-adjusted p (m = 9).", ""]
+    amb = sorted({x["test"] for rows in tests.values() for x in rows if x["observed"].startswith("ambiguous")})
+    L += ["**Direction ambiguity.** For a Wilcoxon test whose median paired difference and matched-pairs "
+          "rank-biserial correlation disagree in sign, the observed direction is reported as ambiguous "
+          "with both signs; neither sign is chosen. Tests affected: "
+          + (", ".join(amb) if amb else "none") + ". Its status is determined by the Holm-adjusted p "
+          "as for every other test.", ""]
     for readout, rows in tests.items():
         L += [f"## Readout: {readout}", "", "| " + " | ".join(head) + " |", "|" + " --- |" * len(head)]
         for x in rows:
@@ -322,10 +343,16 @@ def t2(tests: dict, desc: list[dict]) -> str:
     L += ["", "---", "", "## EXPLORATORY (not registered in §10)", "",
           "Holm adjustment with m = 8, the number of tests the §10 list actually enumerates "
           "(the registered text states m = 9).", "",
-          "| readout | test | p | Holm p (m=8) |", "| --- | --- | --- | --- |"]
+          "| readout | test | p | Holm p (m=8) | status with m=9 | status with m=8 |",
+          "| --- | --- | --- | --- | --- | --- |"]
+    n_diff = 0
     for readout, rows in tests.items():
         for x in rows:
-            L.append(f"| {readout} | {x['test']} | {fmt_p(x['p'])} | {fmt_p(x['p_holm_m8'])} |")
+            n_diff += x["status"] != x["status_m8"]
+            L.append(f"| {readout} | {x['test']} | {fmt_p(x['p'])} | {fmt_p(x['p_holm_m8'])} | "
+                     f"{x['status']} | {x['status_m8']} |")
+    n_all = sum(len(r) for r in tests.values())
+    L += ["", f"Tests whose status differs between m = 9 and m = 8: {n_diff} of {n_all}."]
     return write("T2_preregistered_tests.md", L)
 
 
@@ -405,6 +432,35 @@ def t6(R: dict) -> str:
             gs = [R[(t, k, s, "sagff", False)]["gate"] for s in SEEDS if (t, k, s, "sagff", False) in R]
             L.append(f"| {t} | {k} | " + " | ".join(msd([fn(g) for g in gs], "{:.4f}") for _, fn in cols) + " |")
     return write("T6_gate_statistics.md", L)
+
+
+def t7(R: dict) -> tuple[str, dict]:
+    """Descriptive: per (track, k) paired Macro-F1 differences with an uncorrected,
+    exploratory Wilcoxon per cell. Not part of the registered family."""
+    pairs = (("sagff", "baseline-cap"), ("baseline", "baseline-cap"))
+    min_p = 2 / 2 ** len(SEEDS)
+    L = ["# T7. Test Macro-F1 differences by track and k (DESCRIPTIVE; not part of the registered family)", "",
+         "Generated by `python -m src.analysis all`. Do not edit by hand.", "",
+         f"Paired differences over seeds {list(SEEDS)} (same track, k, seed), mean ± SD (ddof = 1). "
+         "Per cell: two-sided paired Wilcoxon signed-rank (`scipy.stats.wilcoxon`, zero_method='wilcox'), "
+         "**EXPLORATORY, without any multiplicity correction**. With n = 5 pairs and no zero differences "
+         f"the smallest attainable two-sided exact p is {min_p:.4f}.", ""]
+    data = {}
+    for a, b in pairs:
+        L += [f"## {a} − {b}", "",
+              "| track | k | mean ± SD | median paired difference | n | n non-zero | W | p (exploratory, uncorrected) | rank-biserial |",
+              "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+        for t in TRACKS:
+            for k in KS:
+                da = [f1(R[(t, k, s, a, False)]) for s in SEEDS]
+                db = [f1(R[(t, k, s, b, False)]) for s in SEEDS]
+                d = [x - y for x, y in zip(da, db)]
+                w = wilcoxon(da, db)
+                data[(a, b, t, k)] = d
+                L.append(f"| {t} | {k} | {msd(d, '{:+.3f}')} | {w['median_diff']:+.4f} | {w['n']} | "
+                         f"{w['n_nonzero']} | {w['statistic']:.1f} | {fmt_p(w['p'])} | {w['rank_biserial']:+.4f} |")
+        L.append("")
+    return write("T7_macro_f1_differences.md", L), data
 
 
 def predictions_table(tests: dict) -> str:
@@ -615,6 +671,28 @@ def figures(R: dict) -> list[str]:
                  "standard deviation (ddof = 1) over seeds. Runs stop at different epochs (early stopping), "
                  "so each series is truncated at the shortest of its five runs: " + "; ".join(trunc) + "."))
 
+    # F6 -------------------------------------------------------------------- #
+    fig, ax = plt.subplots(figsize=(SINGLE_COL, 2.6))
+    for i, t in enumerate(TRACKS):
+        means, sds = [], []
+        for k in KS:
+            d = [f1(R[(t, k, s, "sagff", False)]) - f1(R[(t, k, s, "baseline-cap", False)]) for s in SEEDS]
+            means.append(statistics.mean(d))
+            sds.append(statistics.stdev(d))
+        off = (i - 1) * 0.06
+        ax.errorbar([j + off for j in range(len(KS))], means, yerr=sds, label=t, **_style(i))
+    ax.axhline(0, color="0.3", linewidth=0.8, linestyle="-")
+    _k_axis(ax)
+    ax.set_ylabel("Test Macro-F1 difference,\nsagff − baseline-cap (proportion)")
+    ax.legend(frameon=False)
+    _save(fig, "F6_sagff_minus_baseline_cap_vs_k")
+    plt.close(fig)
+    caps.append(("F6", "Descriptive. Difference in test Macro-F1 between SAGFF and the parameter-matched "
+                 "featureless head (baseline-cap), against k, one line per dataset track. Differences are "
+                 "paired by seed (same track, k and seed) before averaging. Points: mean paired difference "
+                 f"over the five seeds. {err} The solid horizontal line marks zero difference. Points are "
+                 "offset horizontally for legibility. Not part of the registered analyses."))
+
     lines = ["# Figure captions", "", "Generated by `python -m src.analysis all` from the run logs. "
              "Do not edit by hand. Each figure is saved as PDF and 300-dpi PNG in results/figures/.", ""]
     for name, text in caps:
@@ -635,13 +713,35 @@ def run_all_analyses() -> dict:
     out["T1"], out["T2"] = t1(R), t2(tests, desc)
     out["T3"], out["T4"], out["T5"], out["T6"] = t3(R), t4(runs), t5(), t6(R)
     out["predictions"] = predictions_table(tests)
+    out["T7"], out["T7_data"] = t7(R)
     timing_table()
     out["figures"] = figures(R)
+    thr = runs[0]["config"]["training"]["converged_loss_threshold"]
+    conv = defaultdict(lambda: [0, 0])
+    for log in runs:
+        if log["status"] == "ok" and not log["config"]["dirty"]:
+            c = log["config"]
+            reached = any(e["train_loss"] < thr for e in log["training_log"]["curve"])
+            conv[(c["condition"], c["track"])][0] += 0 if reached else 1
+            conv[(c["condition"], c["track"])][1] += 1
+    conds = ("sagff",) + CONTROLS + ("baseline-cap", "concat-cap", "baseline", "concat")
     L = ["# Run accounting", "", "Generated by `python -m src.analysis all`. Do not edit by hand.", "",
          f"- run logs: {len(runs)}; failed runs: {len(failed)}" + (f" ({', '.join(failed)})" if failed else ""),
-         f"- pairs or points dropped from a registered test: {len(dropped)}", "",
-         "| test | readout | unit | reason |", "| --- | --- | --- | --- |"]
-    L += [f"| {a} | {b} | {c} | {d} |" for a, b, c, d in dropped]
+         f"- pairs absent from the convergence-anchored readout of a registered test: {len(dropped)}", "",
+         "## Convergence as an outcome", "",
+         f"A run has a convergence-anchored readout only if its mean training loss fell below {thr} before "
+         "early stopping ended it. Not reaching that threshold is an outcome of training under the run's "
+         "condition, recorded here per condition; it is not an exclusion of a failed run. Clean condition, "
+         "runs whose training loss never fell below the threshold / runs:", "",
+         "| condition | " + " | ".join(TRACKS) + " | all tracks |", "|" + " --- |" * (2 + len(TRACKS))]
+    for c in conds:
+        cells = [conv[(c, t)] for t in TRACKS]
+        L.append(f"| {c} | " + " | ".join(f"{a} / {b}" for a, b in cells)
+                 + f" | {sum(a for a, _ in cells)} / {sum(b for _, b in cells)} |")
+    L += ["", "## Pairs absent from the convergence-anchored readout", "",
+          "| test | readout | unit | reason |", "| --- | --- | --- | --- |"]
+    L += [f"| {a} | {b} | {c} | {d.replace('no convergence-anchored readout for', 'training loss never fell below the threshold for')} |"
+          for a, b, c, d in dropped]
     out["accounting"] = write("run_accounting.md", L)
     return out
 
