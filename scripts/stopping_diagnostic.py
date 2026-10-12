@@ -18,6 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from src.analysis import n5_note  # noqa: E402
 from src.train import RunSpec, require_clean_tree, run  # noqa: E402
 
 TRACKS = ("bnintent30-bn", "bnintent30-en", "banking77")
@@ -70,7 +71,7 @@ def main() -> None:
          "initialisation. 'Best' = the epoch selected by early stopping on the k-matched validation "
          "split (what the paper analyses); 'final' = the last epoch trained before early stopping "
          f"ended the run. 'Loss < {LOSS_ZERO}' = first epoch whose mean training loss is below "
-         f"{LOSS_ZERO}.", "",
+         f"{LOSS_ZERO}.", "", n5_note(), "",
          "| track | k | best epoch | final epoch | first epoch with loss < 0.01 | displacement at best | "
          "displacement at final | best minus final gate mean | mean abs per-dim displacement, best | "
          "same, final |", "|" + " --- |" * 10]

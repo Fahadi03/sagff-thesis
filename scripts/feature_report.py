@@ -20,6 +20,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from src.analysis import n5_note  # noqa: E402
 from src.data import dedup_key  # noqa: E402
 from src.features import featurize_run, word_tokens  # noqa: E402
 
@@ -87,7 +88,7 @@ def main() -> None:
          "seeds agree. Sparsity = share of zero entries in the full feature matrix. OOV = share of "
          "test word tokens (`word_tokens` = `norm_key(text).split()`) absent from the train-fit "
          "vocabulary (before chi2) or from the chi2-selected terms. All-zero TF-IDF rows are test "
-         "items for which the TF-IDF family carries no information at all.", "",
+         "items for which the TF-IDF family carries no information at all.", "", n5_note(), "",
          "| " + " | ".join(head) + " |", "|" + " --- |" * len(head)]
     for track in TRACKS:
         for k in KS:
@@ -120,7 +121,7 @@ def coverage() -> None:
          "whose words is among the train-fit, chi2-selected terms: for it the word-level family "
          "carries no information. The char n-gram family is never empty, so the handcrafted branch "
          "as a whole is never silent. bnintent30-bn and bnintent30-en are the same items in two "
-         "languages at identical k.", "",
+         "languages at identical k.", "", n5_note(), "",
          "| " + " | ".join(head) + " |", "|" + " --- |" * len(head)]
     for track in ALL_TRACKS:
         for k in ALL_KS:

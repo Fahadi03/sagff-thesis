@@ -16,6 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from src.analysis import n5_note  # noqa: E402
 from src.data import dedup_key  # noqa: E402
 
 TRACK = "bnintent30-bn"
@@ -55,7 +56,7 @@ def main() -> None:
          "official assignment after step 1, steps 2-4 not applied "
          f"({n_test['dirty']} test rows). Clean = after §3.3 ({n_test['clean']} test rows); "
          "it is the control and must be 0.",
-         "",
+         "", n5_note(), "",
          "| k | dirty (i) test rows with key in train | % of test | dirty (ii) test rows with key "
          "in k-matched val | clean (i) | clean (ii) |",
          "| --- | --- | --- | --- | --- | --- |"]
