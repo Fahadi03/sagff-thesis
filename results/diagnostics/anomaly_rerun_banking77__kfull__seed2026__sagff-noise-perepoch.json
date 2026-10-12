@@ -1,0 +1,19 @@
+{
+ "run_id": "banking77__kfull__seed2026__sagff-noise-perepoch",
+ "stored_commit": "8e0a39ecd74d6d165e69f4d5c7d36b8ff0b76181",
+ "rerun_git": {
+  "commit": "ca4836c4d8bb3be463c6dc36ebf54f639362c2fd",
+  "working_tree_dirty": false,
+  "dirty_paths": []
+ },
+ "rerun_wall_clock_s": 449.98,
+ "stored_wall_clock_s": 29673.02,
+ "checks": {
+  "curve (loss, val Macro-F1, per-epoch gate mean/std), every epoch": true,
+  "best epoch and epochs run": true,
+  "metrics (val, val_full_diagnostic, test)": true,
+  "gate statistics (init, best, final, converged; per-dim, histograms, displacements)": true,
+  "features report and permutation info": true
+ },
+ "all_identical": true
+}
