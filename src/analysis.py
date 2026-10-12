@@ -572,7 +572,8 @@ def _legend_below(fig, axes, ncol: int) -> None:
 
 def _save(fig, name: str) -> None:
     FIGURES.mkdir(parents=True, exist_ok=True)
-    fig.savefig(FIGURES / f"{name}.pdf", bbox_inches="tight")
+    # no CreationDate: the PDF bytes then depend only on the data (reproducible figures)
+    fig.savefig(FIGURES / f"{name}.pdf", bbox_inches="tight", metadata={"CreationDate": None})
     fig.savefig(FIGURES / f"{name}.png", dpi=300, bbox_inches="tight")
 
 
