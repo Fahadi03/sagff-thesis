@@ -1,4 +1,4 @@
-"""Run the full grid (CLAUDE.md §5), resumably, in the ruled order.
+"""Run the full grid (docs/PROTOCOL.md §5), resumably, in the ruled order.
 
 Before anything runs:
   1. the whole test suite must pass (pytest tests/), otherwise refuse (§8);
@@ -48,7 +48,7 @@ def log(msg: str) -> None:
 def main() -> None:
     git = require_clean_tree("run_all")
     log(f"grid at commit {git['commit']} (clean tree)")
-    log("running the test suite first (CLAUDE.md §8)...")
+    log("running the test suite first (docs/PROTOCOL.md §8)...")
     tests = subprocess.run([sys.executable, "-m", "pytest", "tests/", "-q"], cwd=ROOT,
                            capture_output=True, text=True)
     log("pytest: " + (tests.stdout.strip().splitlines() or ["(no output)"])[-1])

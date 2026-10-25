@@ -1,5 +1,5 @@
 # Written by scripts/download_data.py. Pinned upstream commits and raw-file
-# checksums (CLAUDE.md §3.2). Do not edit by hand.
+# checksums (docs/PROTOCOL.md §3.2). Do not edit by hand.
 bnintent30:
   repo: JahidBasher/GAN-BnBERT
   path: dataset/BNIntent30/

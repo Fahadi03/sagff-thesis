@@ -1,4 +1,4 @@
-"""Download the raw data, pinned to exact upstream commits (CLAUDE.md §3.2).
+"""Download the raw data, pinned to exact upstream commits (docs/PROTOCOL.md §3.2).
 
 First run:  resolves GAN-BnBERT `main` (and the PolyAI repo `master`) to commit
             SHAs ONCE, downloads those commits, and records SHAs, URLs and the
@@ -111,7 +111,7 @@ def main() -> None:
     download_banking77(cfg)
     CONFIG.parent.mkdir(parents=True, exist_ok=True)
     header = ("# Written by scripts/download_data.py. Pinned upstream commits and raw-file\n"
-              "# checksums (CLAUDE.md §3.2). Do not edit by hand.\n")
+              "# checksums (docs/PROTOCOL.md §3.2). Do not edit by hand.\n")
     CONFIG.write_text(header + yaml.safe_dump(cfg, sort_keys=False, allow_unicode=True),
                       encoding="utf-8", newline="\n")
     print(f"Recorded pins and checksums in {CONFIG.relative_to(ROOT)}")

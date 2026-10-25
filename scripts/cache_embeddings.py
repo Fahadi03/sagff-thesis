@@ -1,4 +1,4 @@
-"""Build the frozen-encoder embedding caches, one per track (CLAUDE.md §6, R1b).
+"""Build the frozen-encoder embedding caches, one per track (docs/PROTOCOL.md §6, R1b).
 
 See src/embeddings.py for why encoding val and test with a frozen encoder is
 NOT a violation of R1: no parameter is estimated from this dataset here.

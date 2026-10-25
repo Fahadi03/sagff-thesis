@@ -1,7 +1,10 @@
 # SAGFF thesis experiments
 
 *When Do Handcrafted Features Help? Scarcity-Aware Feature Fusion for
-Low-Resource Intent Classification in English and Bangla.* Rules: see `CLAUDE.md`.
+Low-Resource Intent Classification in English and Bangla.* Research protocol and
+repository rules: [`docs/PROTOCOL.md`](docs/PROTOCOL.md) (formerly `CLAUDE.md` at the
+repository root). Claude Code does not load it automatically under this name: point
+any future session at it explicitly. AI-use disclosure: `docs/ai_use_disclosure.md`.
 
 ## Reproduce the data (Stage 1)
 
@@ -44,7 +47,7 @@ Each split directory `<track>/k<k>_seed<seed>/` holds `train.jsonl`, `val.jsonl`
   (`results/`, `logs/`) do not count as uncommitted code.
 - A correction to a frozen artefact is made in its OWN commit, touching only what
   is corrected, so the history shows exactly what changed and what did not.
-  Example: `80b01ae` fixed the git command quoted in CLAUDE.md §10 and nothing else,
+  Example: `80b01ae` fixed the git command quoted in §10 of the protocol (then `CLAUDE.md`) and nothing else,
   so the pre-specified analyses remain byte-identical to `44bd224`.
 - Pre-registration: `44bd224` (analysis plan); `32b865c` (two sensitivity readouts
   added after a disclosed stopping diagnostic). See `docs/preregistration_disclosure.md`.

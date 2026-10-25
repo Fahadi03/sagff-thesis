@@ -1,4 +1,4 @@
-# Shared configuration for all heads (CLAUDE.md §7). The `features` section and
+# Shared configuration for all heads (docs/PROTOCOL.md §7). The `features` section and
 # training.lr were selected on validation only and are FROZEN: do not edit by hand.
 features:
   tfidf_dim: 256

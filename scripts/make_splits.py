@@ -1,4 +1,4 @@
-"""Generate the fixed k-shot splits for every (track, k, seed) (CLAUDE.md R3, R5, R9, §3.5).
+"""Generate the fixed k-shot splits for every (track, k, seed) (docs/PROTOCOL.md R3, R5, R9, §3.5).
 
 Two conditions, written to separate trees with separate manifests so they
 cannot be confused:
@@ -94,9 +94,9 @@ def generate(out_dir: Path, tracks: dict, condition: str = "clean") -> dict:
         "generator": "scripts/make_splits.py",
         "condition": condition,
         "description": {
-            "clean": "cleaned per CLAUDE.md §3.3 (steps 1-4)",
+            "clean": "cleaned per docs/PROTOCOL.md §3.3 (steps 1-4)",
             "dirty": "official BNIntent30 assignment, step 1 applied, steps 2-4 NOT applied "
-                     "(leaky condition, CLAUDE.md §5)",
+                     "(leaky condition, docs/PROTOCOL.md §5)",
         }[condition],
         "sources": sources(),
         "seeds": list(SEEDS), "ks": [str(k) for k in KS],

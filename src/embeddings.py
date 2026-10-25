@@ -1,4 +1,4 @@
-"""Frozen-encoder sentence embeddings: compute once, cache, load by uid (CLAUDE.md §6).
+"""Frozen-encoder sentence embeddings: compute once, cache, load by uid (docs/PROTOCOL.md §6).
 
 R1b - WHY ENCODING VAL AND TEST HERE IS NOT LEAKAGE.
 The encoder is FROZEN: its weights come from pretraining and are never updated,

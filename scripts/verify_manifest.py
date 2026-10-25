@@ -1,4 +1,4 @@
-"""Verify split files on disk against their manifests (CLAUDE.md R3).
+"""Verify split files on disk against their manifests (docs/PROTOCOL.md R3).
 
 Both conditions are checked: data/splits/manifest.json (clean) and
 data/splits_dirty/manifest.json (leaky condition, §5). For every

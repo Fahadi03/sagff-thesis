@@ -1,4 +1,4 @@
-"""R1/R3/R5/§3.5 enforcement (CLAUDE.md §8). Must pass before any grid run.
+"""R1/R3/R5/§3.5 enforcement (docs/PROTOCOL.md §8). Must pass before any grid run.
 
 Every text comparison uses src.data.dedup_key, the single deduplication key (§3.3)."""
 import hashlib

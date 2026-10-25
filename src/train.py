@@ -1,4 +1,4 @@
-"""One complete run -> exactly one JSON log (CLAUDE.md R6, R7).
+"""One complete run -> exactly one JSON log (docs/PROTOCOL.md R6, R7).
 
     load split (by manifest; sha256 verified) -> fit handcrafted features on TRAIN
     only (featurize_run) -> load frozen embeddings BY UID -> build head ->

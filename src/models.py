@@ -1,4 +1,4 @@
-"""The five fusion heads (CLAUDE.md §2). All take the cached frozen-encoder
+"""The five fusion heads (docs/PROTOCOL.md §2). All take the cached frozen-encoder
 embedding `e` (B, d_model); the feature heads also take `h_feat` (B, F).
 
     head          features  gate  definition

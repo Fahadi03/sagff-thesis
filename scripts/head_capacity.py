@@ -24,7 +24,7 @@ OUT = ROOT / "results" / "tables" / "head_capacity.md"
 PRIMARY = "bnintent30-bn"  # baseline-cap is matched at the primary tracks' class count
 TOLERANCE = {"baseline-cap": 0.20, "concat-cap": 0.01}
 GATE_BIAS_INIT = 0.0   # sigmoid(W_g x + 0): g is approximately 0.5 at initialisation (G1)
-DROPOUT = 0.1          # conventional default; not tuned (CLAUDE.md §2)
+DROPOUT = 0.1          # conventional default; not tuned (docs/PROTOCOL.md §2)
 FEATURES = {"baseline": "no", "concat": "yes", "sagff": "yes", "concat-cap": "yes", "baseline-cap": "no"}
 GATE = {"sagff": "yes"}
 

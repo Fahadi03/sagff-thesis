@@ -1,4 +1,4 @@
-"""Load, clean and assign uids for all three tracks (CLAUDE.md §3).
+"""Load, clean and assign uids for all three tracks (docs/PROTOCOL.md §3).
 
 Tracks (§3.1):
     bnintent30-en  BNIntent30 `text` field     (English)
@@ -488,7 +488,7 @@ def write_report(tracks: dict, rep: dict, data_cfg: dict | None = None) -> str:
           "multiset of normalized tokens. Tokens come from `norm_key`: Unicode NFC, lowercased, "
           "every punctuation character (Unicode category P, incl. the Bangla danda) replaced by a "
           "space, whitespace collapsed. Sorting makes the key word-order-insensitive, because all "
-          "three handcrafted feature families are (CLAUDE.md §3.3). The \"exact key\" column "
+          "three handcrafted feature families are (docs/PROTOCOL.md §3.3). The \"exact key\" column "
           "re-runs the same step on the same input with the exact string (whitespace collapsed "
           "only, the Stage 1 key); it is reported for comparison only and decides nothing.", "",
           "Steps 2-4 are applied at row level to the union of problems found in either language "

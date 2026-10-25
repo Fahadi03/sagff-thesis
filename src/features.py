@@ -1,4 +1,4 @@
-"""Handcrafted feature families (CLAUDE.md §4), fit per run on the TRAIN split only (R1).
+"""Handcrafted feature families (docs/PROTOCOL.md §4), fit per run on the TRAIN split only (R1).
 
     tfidf      word TF-IDF, chi-squared selected to tfidf_dim columns (configs/default.yaml)
     chargram   character 3/4/5-grams (within word boundaries), hashed to chargram_dim (configs/default.yaml)
@@ -26,7 +26,7 @@ FIXED OUTPUT DIMENSION (identical for every k, track and seed, so W_p has one sh
 NORMALIZATION APPLIED BY EACH FAMILY, compared with the dedup key (src.data.norm_key:
 NFC, lowercase, punctuation -> space, whitespace collapsed). No family may be
 MORE aggressive than the key, or two texts the key keeps apart could become one
-input to the feature branch and the dedup would leave leakage (CLAUDE.md §3.3).
+input to the feature branch and the dedup would leave leakage (docs/PROTOCOL.md §3.3).
   - tfidf:    tokens = norm_key(text).split(). EXACTLY the key - equal, not more
               aggressive. (sklearn's default token_pattern is not used: it
               splits Bangla words at vowel signs, e.g. "আমার" -> "আম".)
@@ -138,7 +138,7 @@ class HandcraftedFeatures:
         if self._fitted:
             raise FeaturesAlreadyFittedError(
                 "HandcraftedFeatures is already fitted. Create a new instance per run; "
-                "never refit (R1, CLAUDE.md §8 assertion 5).")
+                "never refit (R1, docs/PROTOCOL.md §8 assertion 5).")
         if split != "train":
             raise ValueError(f"fit() must receive the TRAIN split only (R1); got split={split!r}.")
         train_texts, train_labels = list(train_texts), list(train_labels)

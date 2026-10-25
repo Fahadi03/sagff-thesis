@@ -1,4 +1,4 @@
-"""Smoke test (CLAUDE.md §9): one track, k=5, one seed, one head, then validate
+"""Smoke test (docs/PROTOCOL.md §9): one track, k=5, one seed, one head, then validate
 the JSON log. bnintent30-bn, k=5, seed 13, sagff.
 
 The log goes to results/smoke/ (never results/runs/, so the real grid run of the
