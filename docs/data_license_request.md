@@ -14,7 +14,7 @@ I am [your name], a [degree] student at [university], working under the
 supervision of [supervisor's name]. My thesis studies when handcrafted features
 help low-resource intent classification in English and Bangla. BNIntent30, from
 your paper "Bengali Intent Classification with Generative Adversarial BERT"
-(arXiv:2312.10679), is the core dataset: because it has the English source and
+(ICCIT 2023, doi:10.1109/ICCIT60459.2023.10440989; arXiv:2312.10679), is the core dataset: because it has the English source and
 the Bangla translation for every utterance, it allows a parallel English-vs-Bangla
 comparison that no other dataset I know of supports. Thank you for releasing it.
 

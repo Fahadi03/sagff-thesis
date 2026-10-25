@@ -37,8 +37,8 @@ Each split directory `<track>/k<k>_seed<seed>/` holds `train.jsonl`, `val.jsonl`
 
 | Dataset | Source (pinned) | License |
 |---|---|---|
-| BNIntent30 | `JahidBasher/GAN-BnBERT` @ `213bbcf` (`dataset/BNIntent30/`) | **None stated** (no license file; paper states no data license). No BNIntent30 text is committed here; only uids and checksums in the two manifests. Permission request draft: `docs/data_license_request.md`. |
-| BANKING77 | `PolyAI-LDN/task-specific-datasets` @ `57ec275` (`banking_data/*.csv`) | CC-BY-4.0, per the repository's LICENSE file (verified via the GitHub license API). |
+| BNIntent30 (Hasan et al., ICCIT 2023, doi:10.1109/ICCIT60459.2023.10440989; also arXiv:2312.10679) | `JahidBasher/GAN-BnBERT` @ `213bbcf` (`dataset/BNIntent30/`) | **None stated** (no license file; paper states no data license). No BNIntent30 text is committed here; only uids and checksums in the two manifests. Permission request draft: `docs/data_license_request.md`. |
+| BANKING77 (Casanueva et al., NLP4ConvAI 2020, doi:10.18653/v1/2020.nlp4convai-1.5) | `PolyAI-LDN/task-specific-datasets` @ `57ec275` (`banking_data/*.csv`) | CC-BY-4.0, per the repository's LICENSE file (verified via the GitHub license API). |
 
 ## Provenance practice
 

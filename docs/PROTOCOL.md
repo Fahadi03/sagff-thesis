@@ -348,6 +348,17 @@ exposed to it.
 | `bnintent30-bn` | BNIntent30 `bn_text` field | Bangla | 30 |
 | `banking77` | BANKING77 | English | 77 |
 
+Dataset citations (verified, `docs/citation_checklist.md`):
+- **BNIntent30:** Hasan, Basher & Shawon, "Bengali Intent Classification with
+  Generative Adversarial BERT", 2023 26th International Conference on Computer and
+  Information Technology (ICCIT), IEEE, pp. 1-6, doi:10.1109/ICCIT60459.2023.10440989
+  (primary; the peer-reviewed version). Secondary pointer: arXiv:2312.10679. That
+  paper spells its source dataset "CLINIC150"; the correct name is **CLINC150**
+  (Larson et al., EMNLP-IJCNLP 2019, doi:10.18653/v1/D19-1131). Our text must not
+  inherit the misspelling.
+- **BANKING77:** Casanueva et al., "Efficient Intent Detection with Dual Sentence
+  Encoders", NLP4ConvAI 2020, doi:10.18653/v1/2020.nlp4convai-1.5.
+
 `bnintent30-en` vs `bnintent30-bn` is the **primary** comparison (parallel,
 controlled). `banking77` is a **generality check** — a different domain and a
 much larger label space — and runs last.

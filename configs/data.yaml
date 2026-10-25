@@ -37,6 +37,14 @@ bnintent30:
     bn_what_song.json: dc7d27a268a43e6075c0b6ffae68418437d38167a2132c21e676400e93bbc3ca
     bn_where_are_you_from.json: 15393af11544076b7ecbbef90001c58a2f7e09b2f4d1a4f33d0acafd78cff7e2
     bn_yes.json: ce9be4a4d2fb09fa7ecfd1b024fe2afa7279751c01e2d950bb6cfc1b270fbe51
+  citation:
+    primary: M. Hasan, M. J. I. Basher, M. T. R. Shawon, "Bengali Intent Classification
+      with Generative Adversarial BERT", 2023 26th International Conference on Computer
+      and Information Technology (ICCIT), IEEE, pp. 1-6, 2023
+    doi: 10.1109/ICCIT60459.2023.10440989
+    secondary: arXiv:2312.10679
+    note: the paper spells its source dataset 'CLINIC150'; the dataset's name is CLINC150
+      (Larson et al., EMNLP-IJCNLP 2019, doi:10.18653/v1/D19-1131)
 banking77:
   repo: PolyAI-LDN/task-specific-datasets
   commit: 57ec275d8078af65b7731c2a98be812d844a6d6b
@@ -48,3 +56,8 @@ banking77:
   files_sha256:
     train.csv: b06e26ac675513959a63135f11b94ea7786ed02da65db93a5650d8838cbc664b
     test.csv: d12d6e3bc4c3103966ae786dc435913c0c563dfa328f5a3646d0e62cfeeb474d
+  citation:
+    primary: I. Casanueva, T. Temcinas, D. Gerz, M. Henderson, I. Vulic, "Efficient
+      Intent Detection with Dual Sentence Encoders", Proceedings of the 2nd Workshop
+      on NLP for Conversational AI, ACL, pp. 38-45, 2020
+    doi: 10.18653/v1/2020.nlp4convai-1.5

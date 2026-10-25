@@ -28,6 +28,24 @@ BN30_BRANCH = "main"
 BN30_PATH = "dataset/BNIntent30/"
 
 B77_REPO = "PolyAI-LDN/task-specific-datasets"
+
+# Dataset citations, verified against the publisher/archive record
+# (docs/citation_checklist.md). Primary = peer-reviewed version.
+BN30_CITATION = {
+    "primary": "M. Hasan, M. J. I. Basher, M. T. R. Shawon, \"Bengali Intent Classification with "
+               "Generative Adversarial BERT\", 2023 26th International Conference on Computer and "
+               "Information Technology (ICCIT), IEEE, pp. 1-6, 2023",
+    "doi": "10.1109/ICCIT60459.2023.10440989",
+    "secondary": "arXiv:2312.10679",
+    "note": "the paper spells its source dataset 'CLINIC150'; the dataset's name is CLINC150 "
+            "(Larson et al., EMNLP-IJCNLP 2019, doi:10.18653/v1/D19-1131)",
+}
+B77_CITATION = {
+    "primary": "I. Casanueva, T. Temcinas, D. Gerz, M. Henderson, I. Vulic, \"Efficient Intent "
+               "Detection with Dual Sentence Encoders\", Proceedings of the 2nd Workshop on NLP for "
+               "Conversational AI, ACL, pp. 38-45, 2020",
+    "doi": "10.18653/v1/2020.nlp4convai-1.5",
+}
 B77_BRANCH = "master"
 B77_FILES = {"train": "banking_data/train.csv", "test": "banking_data/test.csv"}
 
@@ -57,6 +75,7 @@ def check_or_record(recorded: dict, name: str, digest: str) -> None:
 
 def download_bnintent30(cfg: dict) -> None:
     sec = cfg.setdefault("bnintent30", {"repo": BN30_REPO, "path": BN30_PATH})
+    sec["citation"] = BN30_CITATION
     if "commit" not in sec:
         sec["commit"] = resolve_commit(BN30_REPO, BN30_BRANCH)
         sec["resolved_from_branch"] = BN30_BRANCH
@@ -83,6 +102,7 @@ def download_bnintent30(cfg: dict) -> None:
 
 def download_banking77(cfg: dict) -> None:
     sec = cfg.setdefault("banking77", {"repo": B77_REPO})
+    sec["citation"] = B77_CITATION
     if "commit" not in sec:
         sec["commit"] = resolve_commit(B77_REPO, B77_BRANCH)
         sec["resolved_from_branch"] = B77_BRANCH
