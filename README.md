@@ -70,7 +70,8 @@ clone it runs the tests and then skips all 460 runs. To re-run the grid from
 scratch, move `results/runs/` aside first (for example to `results/runs_committed/`)
 and compare the new logs with the committed ones. The grid took 11.9 h of wall
 time on the original machine, of which 8.1 h was a machine sleep during one run
-(`results/runs_anomalies.md`); the runs themselves took 3.7 h.
+(`results/runs_anomalies.md`); without the sleep the runs took 3.8 h (sum of the
+`wall_clock_s` fields minus the recorded sleep).
 
 ### Outputs that are not byte-identical on regeneration, and why
 
