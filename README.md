@@ -60,7 +60,9 @@ Each command writes the files named after it. Times are for the original CPU.
 ```
 
 Steps 1, 4 and 5 reproduce the committed files byte for byte, with the
-exceptions listed below. Tables T3 and T5 also need the raw data and the leaky
+exceptions listed below. `scripts/check_numeric_equality.py <commit>` compares every
+numeric table cell and every figure on disk with their versions at a given commit and
+prints the full text diff. Tables T3 and T5 also need the raw data and the leaky
 split files from step 1.
 
 `scripts/run_all.py` skips every run whose log already exists, so on a fresh
