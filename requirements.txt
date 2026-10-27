@@ -1,18 +1,21 @@
-# Stage 1 (data)
+# Direct dependencies, pinned. For the exact environment that produced the runs
+# (all transitive packages included) install requirements.lock instead.
+# Data download, cleaning and tests
 pandas==3.0.6
 PyYAML==6.0.3
 pytest==9.1.1
-# Stage 2 (features)
+# Handcrafted features and statistics
 scikit-learn==1.9.1
 scipy==1.18.1
 numpy==2.5.3
-# Stage 2b (heads). CPU build: pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
+# Fusion heads. The runs used the CPU build (torch 2.14.1+cpu), from
+# https://download.pytorch.org/whl/cpu; requirements.lock selects it.
 torch==2.14.1
-# Stage 3 (embedding cache)
+# Frozen-encoder embedding cache
 transformers==5.19.0
 sentencepiece==0.2.2
 tokenizers==0.23.3
 safetensors==0.8.0
 huggingface_hub==2.2.0
-# Stage 7 (figures)
+# Figures
 matplotlib==3.11.2

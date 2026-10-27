@@ -1,4 +1,4 @@
-"""Run the full grid (docs/PROTOCOL.md §5), resumably, in the ruled order.
+"""Run the full grid (docs/PROTOCOL.md §5), resumably, in the fixed run order.
 
 Before anything runs:
   1. the whole test suite must pass (pytest tests/), otherwise refuse (§8);
@@ -13,7 +13,11 @@ condition: bnintent30-bn, sagff then baseline, all k, all seeds (dirty=true).
 Resumable: a run whose JSON already exists is skipped. A FAILED run is never
 re-run (§10, failed-run rule); it is counted and reported.
 
-Usage:  nohup .venv/Scripts/python scripts/run_all.py > logs/grid.log 2>&1 &
+Progress goes to stdout and is appended to logs/grid.log (created if missing; the
+directory is gitignored). scripts/record_anomalies.py reads that file, so its line
+format ("YYYY-MM-DD HH:MM:SS [i/n] <run_id>: <status> ...") is kept stable.
+
+Usage:  python scripts/run_all.py
 """
 import json
 import subprocess
@@ -31,9 +35,11 @@ KS = ("5", "10", "20", "full")
 SEEDS = (13, 42, 87, 100, 2026)
 DIRTY = ("bnintent30-bn", ("sagff", "baseline"))
 RUN_DIR = ROOT / "results" / "runs"
+GRID_LOG = ROOT / "logs" / "grid.log"
 
 
 def grid() -> list[RunSpec]:
+    """Every run of the grid, in the order of docs/PROTOCOL.md §5."""
     specs = [RunSpec(track=t, k=k, seed=s, condition=c)
              for t in TRACKS for c in CONDITIONS for k in KS for s in SEEDS]
     specs += [RunSpec(track=DIRTY[0], k=k, seed=s, condition=c, dirty=True)
@@ -42,10 +48,16 @@ def grid() -> list[RunSpec]:
 
 
 def log(msg: str) -> None:
-    print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}", flush=True)
+    """Print a timestamped progress line and append it to logs/grid.log."""
+    line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}"
+    print(line, flush=True)
+    GRID_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with GRID_LOG.open("a", encoding="utf-8", newline="\n") as f:
+        f.write(line + "\n")
 
 
 def main() -> None:
+    """Refuse on uncommitted code or a failing test suite; otherwise run every missing run."""
     git = require_clean_tree("run_all")
     log(f"grid at commit {git['commit']} (clean tree)")
     log("running the test suite first (docs/PROTOCOL.md §8)...")
@@ -53,7 +65,7 @@ def main() -> None:
                            capture_output=True, text=True)
     log("pytest: " + (tests.stdout.strip().splitlines() or ["(no output)"])[-1])
     if tests.returncode != 0:
-        print(tests.stdout[-4000:], tests.stderr[-2000:], sep="\n", flush=True)
+        log("pytest output (tail):\n" + tests.stdout[-4000:] + "\n" + tests.stderr[-2000:])
         log("REFUSING to start the grid: the test suite did not pass.")
         sys.exit(1)
 

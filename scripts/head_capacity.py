@@ -81,7 +81,11 @@ def main() -> None:
     header = "".join(line + "\n" for line in raw.splitlines() if line.startswith("#"))
     cfg = yaml.safe_load(raw)
     cfg["heads"] = heads_cfg
-    CONFIG.write_text(header + yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8", newline="\n")
+    text = header + yaml.safe_dump(cfg, sort_keys=False)
+    if text == raw:
+        print(f"\n{CONFIG.relative_to(ROOT)} heads section unchanged (not rewritten)")
+        return
+    CONFIG.write_text(text, encoding="utf-8", newline="\n")
     print(f"\nwrote {CONFIG.relative_to(ROOT)} (heads section)")
 
 
