@@ -88,14 +88,17 @@ class FeaturesAlreadyFittedError(RuntimeError):
 
 # Module-level so the fitted object stays picklable.
 def word_tokens(text: str) -> list[str]:
+    """TF-IDF tokens: exactly the tokens of the dedup key's normalization."""
     return norm_key(text).split()
 
 
 def nfc_lower(text: str) -> str:
+    """Preprocessor of the char n-gram family: NFC and lowercase only."""
     return unicodedata.normalize("NFC", text).lower()
 
 
 def utterance_stats(text: str) -> list[float]:
+    """The six utterance statistics of one text (STATS_NAMES order)."""
     t = unicodedata.normalize("NFC", text)
     tokens = t.split()
     n_chars = len(t)

@@ -34,15 +34,18 @@ N_THREADS = 6      # set explicitly and logged (§9)
 
 
 def cache_paths(track: str) -> tuple[Path, Path]:
+    """(matrix, sidecar) paths of a track's embedding cache."""
     stem = f"{track}_{ENCODER_SHORT}_{POOLING}"
     return CACHE / f"{stem}.npy", CACHE / f"{stem}.json"
 
 
 def sha256_file(p: Path) -> str:
+    """sha256 of a file's bytes."""
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
 def texts_sha256(uids: list[str], texts: list[str]) -> str:
+    """Fingerprint of the (uid, text) pairs a cache was built from."""
     return hashlib.sha256("\x1e".join(f"{u}\x1f{t}" for u, t in zip(uids, texts)).encode("utf-8")).hexdigest()
 
 

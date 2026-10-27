@@ -120,6 +120,7 @@ def require_clean_tree(what: str) -> dict:
 
 
 def library_versions() -> dict:
+    """Versions of the libraries that determine a run's numbers."""
     import scipy
     import sklearn
     import torch
@@ -154,6 +155,7 @@ def permutation(seed: int, split: str, uids: list[str], epoch: int | None = None
 
 
 def macro_f1_acc(y_true, y_pred, n_classes) -> dict:
+    """Macro-F1 over all classes of the track, and accuracy."""
     from sklearn.metrics import accuracy_score, f1_score
     return {"macro_f1": float(f1_score(y_true, y_pred, average="macro", labels=list(range(n_classes)),
                                        zero_division=0)),
@@ -161,6 +163,7 @@ def macro_f1_acc(y_true, y_pred, n_classes) -> dict:
 
 
 def gate_stats(gates: np.ndarray, prefix: str) -> dict:
+    """Mean, SD, per-dimension mean and GATE_BINS-bin histogram of gate values, keys prefixed."""
     hist, _ = np.histogram(gates, bins=GATE_BINS, range=(0.0, 1.0))
     return {f"{prefix}mean": round(float(gates.mean()), 6),
             f"{prefix}std": round(float(gates.std()), 6),

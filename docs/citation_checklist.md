@@ -2,73 +2,89 @@
 
 Compliance item (Elsevier: AI-generated references "can be incorrect, hallucinated,
 or fabricated"; fabricated references can lead to rejection). Every entry was
-verified on 2026-10-26 against the publisher's or archive's own record (ACL
-Anthology, arXiv, Crossref). Nothing below was filled in from memory. A citation
+checked against the publisher's or archive's own record (ACL Anthology, arXiv,
+Crossref, the NeurIPS and ICLR proceedings pages, and the papers' own text where a
+claim depends on content). Nothing below was filled in from memory. A citation
 that cannot be confirmed is marked **not found**, and the sentence relying on it is
 dropped.
 
-Status: **confirmed** (claim matches the source) · **corrected** (source found,
-claim needed changing) · **not found** (no source located) · **pending** (not yet
-available to check).
+Status: **confirmed** (record found, and it supports the claim) · **corrected**
+(record found, but the claim or the reference details need changing) ·
+**not found** (no record could be identified).
 
 ## Scope
 
-- **Draft manuscript sections: PENDING.** The drafts (`docs/drafts/methodology_draft.md`,
-  `results_draft.md`, `manuscript_remaining_sections.md`,
-  `thesis_journey_and_defence.md`) were reported as added, but as of 2026-10-26 no
-  `docs/drafts/` directory exists in the repository and no file of those names was
-  found on Desktop, Downloads or Documents. The citations reported as marked
-  `[verify]` in them are listed under "Pending" below. They are NOT verified: each
-  needs the draft's own claim (authors, title, venue, year, DOI, and the sentence it
-  supports) before it can be checked against the source.
-- **`docs/PROTOCOL.md`:** three citations, all checked below (1-3).
-- **Unavoidable method references:** the two datasets, BNIntent30's source
-  dataset and the encoder are not cited in the protocol but will be cited in any
-  manuscript of this study; checked below (4-7).
+- **`docs/PROTOCOL.md`:** three citations (entries 1-3).
+- **Unavoidable method references:** the two datasets, BNIntent30's source dataset
+  and the encoder (entries 4-7).
+- **Manuscript drafts** (`docs/drafts/`, not committed): every citation marked
+  `[verify]` (entries 8-18), plus the gated-fusion prior art (entry 19).
+- Entries 1-7 were first checked on 2026-10-26 and re-checked on 2026-10-28; entries
+  8-19 were checked on 2026-10-28.
 
 ## Entries
 
 | # | Claimed (where) | Verified record | DOI / identifier | Status | Source checked |
 |---|---|---|---|---|---|
-| 1 | Peters, Ruder & Smith (2019), feature-based transfer (PROTOCOL §0) | M. E. Peters, S. Ruder, N. A. Smith, "To Tune or Not to Tune? Adapting Pretrained Representations to Diverse Tasks", *Proceedings of the 4th Workshop on Representation Learning for NLP (RepL4NLP-2019)*, ACL, Florence, pp. 7-14, 2019 | 10.18653/v1/W19-4302 | confirmed | https://aclanthology.org/W19-4302/ |
-| 2 | Dodge et al. 2020, seed instability of few-sample fine-tuning (PROTOCOL §0) | J. Dodge, G. Ilharco, R. Schwartz, A. Farhadi, H. Hajishirzi, N. Smith, "Fine-Tuning Pretrained Language Models: Weight Initializations, Data Orders, and Early Stopping", arXiv:2002.06305, 2020. Abstract: "distinct random seeds can lead to substantially different results" | 10.48550/arXiv.2002.06305 | confirmed (preprint: no peer-reviewed venue listed; cite as arXiv) | https://arxiv.org/abs/2002.06305 |
-| 3 | Gao et al., 2021, ACL 2021 §3, dev set of the same size as the few-shot training set (PROTOCOL §3.5) | T. Gao, A. Fisch, D. Chen, "Making Pre-trained Language Models Better Few-shot Learners", *Proceedings of the 59th Annual Meeting of the ACL and the 11th IJCNLP (Volume 1: Long Papers)*, pp. 3816-3830, 2021. §3 text ("development set ... of the same size as the few-shot training set") checked earlier against the paper's arXiv full text | 10.18653/v1/2021.acl-long.295 | confirmed | https://aclanthology.org/2021.acl-long.295/ ; https://ar5iv.labs.arxiv.org/html/2012.15723 |
-| 4 | BNIntent30 dataset: arXiv:2312.10679 (`docs/data_license_request.md`; README, PROTOCOL and `configs/data.yaml` named only the GitHub repository) | M. Hasan, M. J. I. Basher, M. T. R. Shawon, "Bengali Intent Classification with Generative Adversarial BERT", *2023 26th International Conference on Computer and Information Technology (ICCIT)*, IEEE, pp. 1-6, 2023. Also arXiv:2312.10679 (17 Dec 2023) | 10.1109/ICCIT60459.2023.10440989 (arXiv: 10.48550/arXiv.2312.10679) | **corrected**: a peer-reviewed IEEE version exists; cite it, with the arXiv version as an optional second identifier | https://api.crossref.org (title query); https://arxiv.org/abs/2312.10679 |
-| 5 | BANKING77 dataset (README, PROTOCOL §3) | I. Casanueva, T. Temčinas, D. Gerz, M. Henderson, I. Vulić, "Efficient Intent Detection with Dual Sentence Encoders", *Proceedings of the 2nd Workshop on Natural Language Processing for Conversational AI*, ACL, pp. 38-45, 2020 | 10.18653/v1/2020.nlp4convai-1.5 | confirmed | https://aclanthology.org/2020.nlp4convai-1.5/ |
-| 6 | CLINC150, the source of BNIntent30 (PROTOCOL §4) | S. Larson, A. Mahendran, J. J. Peper, C. Clarke, A. Lee, P. Hill, J. K. Kummerfeld, K. Leach, M. A. Laurenzano, L. Tang, J. Mars, "An Evaluation Dataset for Intent Classification and Out-of-Scope Prediction", *Proceedings of EMNLP-IJCNLP 2019*, ACL, pp. 1311-1316, 2019 | 10.18653/v1/D19-1131 | confirmed. Note: the BNIntent30 paper spells it "CLINIC150"; the dataset's name is CLINC150 | https://aclanthology.org/D19-1131/ |
-| 7 | xlm-roberta-base, the frozen encoder (PROTOCOL §5-6) | A. Conneau, K. Khandelwal, N. Goyal, V. Chaudhary, G. Wenzek, F. Guzmán, E. Grave, M. Ott, L. Zettlemoyer, V. Stoyanov, "Unsupervised Cross-lingual Representation Learning at Scale", *Proceedings of the 58th Annual Meeting of the ACL*, pp. 8440-8451, 2020 | 10.18653/v1/2020.acl-main.747 | confirmed | https://aclanthology.org/2020.acl-main.747/ |
+| 1 | Peters, Ruder & Smith (2019), feature-based transfer (PROTOCOL §0; methodology §3.5; remaining §2.4) | M. E. Peters, S. Ruder, N. A. Smith, "To Tune or Not to Tune? Adapting Pretrained Representations to Diverse Tasks", *Proceedings of the 4th Workshop on Representation Learning for NLP (RepL4NLP-2019)*, ACL, pp. 7-14, 2019 | 10.18653/v1/W19-4302 | confirmed | https://api.crossref.org/works/10.18653/v1/W19-4302 |
+| 2 | Dodge et al. 2020, seed instability of few-sample fine-tuning (PROTOCOL §0; methodology §3.5; remaining §2.3, §6) | J. Dodge, G. Ilharco, R. Schwartz, A. Farhadi, H. Hajishirzi, N. Smith, "Fine-Tuning Pretrained Language Models: Weight Initializations, Data Orders, and Early Stopping", arXiv:2002.06305, 2020. Abstract: "distinct random seeds can lead to substantially different results" | 10.48550/arXiv.2002.06305 | confirmed (preprint: no peer-reviewed venue listed; cite as arXiv) | https://arxiv.org/abs/2002.06305 |
+| 3 | Gao et al., 2021, ACL 2021 §3, dev set of the same size as the few-shot training set (PROTOCOL §3.5; remaining §2.3) | T. Gao, A. Fisch, D. Chen, "Making Pre-trained Language Models Better Few-shot Learners", *Proceedings of the 59th Annual Meeting of the ACL and the 11th IJCNLP (Volume 1: Long Papers)*, pp. 3816-3830, 2021. The §3 wording was checked against the paper's full text | 10.18653/v1/2021.acl-long.295 | confirmed | https://aclanthology.org/2021.acl-long.295/ ; https://ar5iv.labs.arxiv.org/html/2012.15723 |
+| 4 | BNIntent30 dataset (README, PROTOCOL §3.1, `configs/data.yaml`; methodology §3.2 and remaining §2.1 cite only "arXiv:2312.10679") | M. Hasan, M. J. I. Basher, M. T. R. Shawon, "Bengali Intent Classification with Generative Adversarial BERT", *2023 26th International Conference on Computer and Information Technology (ICCIT)*, IEEE, pp. 1-6, 2023. Also arXiv:2312.10679 (17 Dec 2023) | 10.1109/ICCIT60459.2023.10440989 (arXiv: 10.48550/arXiv.2312.10679) | **corrected**: cite the peer-reviewed IEEE version, with the arXiv version as an optional second identifier. The drafts still cite only the arXiv identifier | https://api.crossref.org/works/10.1109/ICCIT60459.2023.10440989 ; https://arxiv.org/abs/2312.10679 |
+| 4a | BNIntent30's Bangla is "machine translations of English source sentences with subsequent manual review" (methodology §3.2; remaining §6) | The paper states that the English CLINC150 samples were translated with the Google Translator API and that the authors "carefully reviewed every piece of data to weed out any discrepancies" | as entry 4 | confirmed. Note that 67 untranslated `TRANSLATION_FAILED` placeholders remain in the released data (`results/tables/data_cleaning.md`) | https://arxiv.org/html/2312.10679 |
+| 5 | BANKING77 dataset (README, PROTOCOL §3; methodology §3.2; remaining §2.1) | I. Casanueva, T. Temčinas, D. Gerz, M. Henderson, I. Vulić, "Efficient Intent Detection with Dual Sentence Encoders", *Proceedings of the 2nd Workshop on Natural Language Processing for Conversational AI*, ACL, pp. 38-45, 2020 | 10.18653/v1/2020.nlp4convai-1.5 | confirmed | https://aclanthology.org/2020.nlp4convai-1.5/ |
+| 6 | CLINC150, the source of BNIntent30 (PROTOCOL §4; methodology §3.2 as "Larson et al., 2019"; remaining §2.1) | S. Larson, A. Mahendran, J. J. Peper, C. Clarke, A. Lee, P. Hill, J. K. Kummerfeld, K. Leach, M. A. Laurenzano, L. Tang, J. Mars, "An Evaluation Dataset for Intent Classification and Out-of-Scope Prediction", *Proceedings of EMNLP-IJCNLP 2019*, ACL, pp. 1311-1316, 2019 | 10.18653/v1/D19-1131 | confirmed. The BNIntent30 paper spells it "CLINIC150"; the dataset's name is CLINC150 | https://aclanthology.org/D19-1131/ |
+| 7 | xlm-roberta-base, the frozen encoder (PROTOCOL §5-6; methodology §3.5 as "Conneau et al., 2020") | A. Conneau, K. Khandelwal, N. Goyal, V. Chaudhary, G. Wenzek, F. Guzmán, E. Grave, M. Ott, L. Zettlemoyer, V. Stoyanov, "Unsupervised Cross-lingual Representation Learning at Scale", *Proceedings of the 58th Annual Meeting of the ACL*, pp. 8440-8451, 2020 | 10.18653/v1/2020.acl-main.747 | confirmed | https://api.crossref.org/works/10.18653/v1/2020.acl-main.747 |
+| 8 | Liang et al., 2025, *Sci. Rep.*, DOI 10.1038/s41598-025-25783-x, hybrid RoBERTa + TF-IDF + attention model, "our primary point of comparison" (methodology §3.1; remaining §1, §2.2) | Z. Liang, Y. Zhao, H. Xu, H. Huang, L. Chen, "A hybrid model integrating RoBERTa, TF-IDF, and attention mechanism for medical query intent classification", *Scientific Reports* 15, article 42847, 2025 | 10.1038/s41598-025-25783-x | confirmed. Its task is *medical query* intent classification; say so where it is called the primary point of comparison | https://api.crossref.org/works/10.1038/s41598-025-25783-x |
+| 9 | ESIE-BERT, cited as a hybrid of transformer representations with handcrafted lexical features (remaining §1 paragraph 2, §2.2) | Y. Guo, Z. Xie, X. Chen, H. Chen, L. Wang, H. Du, S. Wei, Y. Zhao, Q. Li, G. Wu, "ESIE-BERT: Enriching Sub-words Information Explicitly with BERT for Joint Intent Classification and SlotFilling", arXiv:2211.14829, 2022 (v3 2023) | arXiv:2211.14829 | **corrected**: the paper exists, but it adds a sub-word attention adapter to BERT for joint intent classification and slot filling; it uses no handcrafted lexical features (TF-IDF, character n-grams). It does not support "combines pretrained transformer representations with handcrafted lexical features". Cite it only for sub-word information in intent models, or drop it. Preprint, no venue listed | https://arxiv.org/abs/2211.14829 |
+| 10 | MICL (remaining §2.2) | No intent-classification paper using the acronym "MICL" was found. The closest acronym match, MICoL ("Metadata-Induced Contrastive Learning for Zero-Shot Multi-Label Text Classification"), is a different task | — | **not found**: the draft gives no authors, title or year. Drop it, or supply the full reference and re-check | web search, 2026-10-28 |
+| 11 | MBCS (remaining §2.2) | No intent-classification paper or model named "MBCS" was found | — | **not found**: no authors, title or year in the draft. Drop it, or supply the full reference | web search, 2026-10-28 |
+| 12 | Yang et al., 2024, *Pattern Recognition*, few-shot protocols (remaining §2.3) | No 2024 *Pattern Recognition* paper by a first author Yang on few-shot (intent) protocols could be identified from author, year and journal alone | — | **not found**: needs the title or DOI. Drop the sentence or supply the reference | web search, 2026-10-28 |
+| 13 | Perez et al., 2021, the "true few-shot" critique of large validation sets (methodology §3.4; remaining §2.3) | E. Perez, D. Kiela, K. Cho, "True Few-Shot Learning with Language Models", *Advances in Neural Information Processing Systems 34 (NeurIPS 2021)*. Abstract: model selection without held-out data "greatly underperform[s] selection based on held-out examples" | arXiv:2105.11447 | confirmed. It supports the claim that large held-out sets inflate few-shot results | https://proceedings.neurips.cc/paper/2021/hash/5c04925674920eb58467fb52ce4ef728-Abstract.html ; https://arxiv.org/abs/2105.11447 |
+| 14 | Zhang et al., 2021, instability of few-sample fine-tuning (methodology §3.5; remaining §2.3) | T. Zhang, F. Wu, A. Katiyar, K. Q. Weinberger, Y. Artzi, "Revisiting Few-sample BERT Fine-tuning", *ICLR 2021* (poster). The abstract studies "commonly observed instabilities in few-sample scenarios" | arXiv:2006.05987 | confirmed. Note the paper also proposes practices that *resolve* the instability; a sentence citing it for "fine-tuning is unstable" should not imply the instability is unavoidable | https://iclr.cc/virtual/2021/poster/2678 ; https://arxiv.org/abs/2006.05987 |
+| 15 | Reimers & Gurevych, 2019, mean pooling is substantially stronger than the summary token in a frozen encoder (methodology §3.5; remaining §2.4) | N. Reimers, I. Gurevych, "Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks", *Proceedings of EMNLP-IJCNLP 2019*, pp. 3982-3992. Table 1 (no STS training): average BERT embeddings 54.81 vs BERT CLS vector 29.19 average Spearman; "The default configuration is MEAN" | 10.18653/v1/D19-1410 | confirmed for BERT on STS. The evidence is for BERT, not XLM-R; word the sentence accordingly | https://aclanthology.org/D19-1410/ ; https://arxiv.org/abs/1908.10084 |
+| 16 | Hochreiter & Schmidhuber, 1997, gated recurrent architectures (methodology §3.7; remaining §1, §2.4) | S. Hochreiter, J. Schmidhuber, "Long Short-Term Memory", *Neural Computation* 9(8), pp. 1735-1780, 1997 | 10.1162/neco.1997.9.8.1735 | confirmed | https://api.crossref.org/works/10.1162/neco.1997.9.8.1735 |
+| 17 | Srivastava et al., 2015, highway networks (methodology §3.7; remaining §1, §2.4) | R. K. Srivastava, K. Greff, J. Schmidhuber, "Training Very Deep Networks", *Advances in Neural Information Processing Systems 28 (NIPS 2015)*. The earlier "Highway Networks" (arXiv:1505.00387) was a 6-page ICML 2015 Deep Learning workshop paper whose arXiv comment points to the full paper, arXiv:1507.06228 | arXiv:1507.06228 (full paper); arXiv:1505.00387 (workshop) | **corrected**: "Srivastava et al., 2015" is ambiguous; cite the NIPS 2015 paper (or both, stating which) | https://papers.nips.cc/paper/2015/hash/215a71a12769b056c3c32e7299f1c5ed-Abstract.html ; https://arxiv.org/abs/1505.00387 |
+| 18 | HWU64 and MASSIVE (remaining §2.1) | — | — | not checked: the draft names them without any reference. Add references, or drop them; PROTOCOL §5 places both out of scope as datasets | — |
+| 19 | Arevalo et al., 2017, Gated Multimodal Units (prior art for the SAGFF fusion operator; not yet cited in the drafts) | J. Arevalo, T. Solorio, M. Montes-y-Gómez, F. A. González, "Gated Multimodal Units for Information Fusion", *ICLR 2017 Workshop track* (header of the paper); arXiv:1702.01992 (7 Feb 2017) | 10.48550/arXiv.1702.01992 | confirmed; see the note below | https://arxiv.org/abs/1702.01992 (abstract page and PDF text) |
 
-## Corrections
+## Gated fusion: what is and is not our contribution
 
-1. **BNIntent30 (entry 4).** The repository cited only the arXiv preprint. A
-   peer-reviewed version is indexed by Crossref: IEEE, ICCIT 2023, pp. 1-6,
-   DOI 10.1109/ICCIT60459.2023.10440989. It is now the primary citation everywhere
-   the dataset is cited (PROTOCOL §3.1, README, `configs/data.yaml` via
-   `scripts/download_data.py`, `docs/data_license_request.md`), with the arXiv entry
-   as a secondary pointer.
-2. **CLINC150 spelling (entry 6).** The BNIntent30 paper spells its source dataset
-   "CLINIC150". The dataset's name is CLINC150; our text must use the correct name.
-   This is recorded in PROTOCOL §3.1 and in `configs/data.yaml`.
+The GMU of Arevalo et al. (2017), bimodal form, as given in the paper:
 
-Not corrections, but worth knowing when writing the reference list: entry 2 is a
-preprint with no peer-reviewed venue; entry 1 is a workshop paper; entry 6's name
-is misspelled in the BNIntent30 paper.
+```
+h_v = tanh(W_v · x_v)
+h_t = tanh(W_t · x_t)
+z   = σ(W_z · [x_v, x_t])
+h   = z ∗ h_v + (1 − z) ∗ h_t
+```
 
-## Pending (reported in the drafts as `[verify]`; drafts not yet in the repository)
+SAGFF (PROTOCOL §2):
 
-Not checked, and not to be cited until checked against the draft's claim and the
-source record. Listed as reported; several cannot be identified without the
-draft's title or context (an author and year alone can match more than one paper).
+```
+h_enc    = LayerNorm(e)
+h_feat_p = LayerNorm(W_p · h_feat)
+g        = σ(W_g · [h_enc ; h_feat_p])
+h        = g ∗ h_enc + (1 − g) ∗ h_feat_p
+```
 
-| # | As reported | Status |
-|---|---|---|
-| P1 | Liang et al., Scientific Reports, 2025 | pending |
-| P2 | Yang et al., Pattern Recognition, 2024 | pending |
-| P3 | ESIE-BERT | pending |
-| P4 | MICL | pending |
-| P5 | MBCS | pending |
-| P6 | Hochreiter & Schmidhuber, 1997 | pending |
-| P7 | Srivastava et al., 2015 | pending |
-| P8 | Reimers & Gurevych, 2019 | pending |
-| P9 | Perez et al., 2021 | pending |
-| P10 | Zhang et al., 2021 | pending |
+The fusion operator is essentially the GMU: a sigmoid gate computed from both
+branches, a convex, element-wise combination of the two branch representations, and
+a gate with one value per dimension. The **vector gate is shared with the GMU, not
+a difference**: `z` multiplies `h_v` element-wise and has its dimension. The
+differences are:
+
+1. **Branch transform.** The GMU passes each modality through a learned projection
+   and `tanh`. SAGFF applies LayerNorm to both branches instead, with no projection
+   on the encoder branch (`h_enc = LayerNorm(e)`) and a linear projection without a
+   nonlinearity on the feature branch. The LayerNorm removes the scale mismatch
+   between dense encoder activations and sparse TF-IDF values, which is what makes
+   the gate value interpretable as reliance (PROTOCOL §2).
+2. **Gate input.** The GMU computes `z` from the raw inputs `[x_v, x_t]`; SAGFF
+   computes `g` from the normalised branch outputs `[h_enc ; h_feat_p]`.
+3. **Initialisation.** SAGFF sets the gate bias to 0 explicitly so that `g` starts
+   near 0.5, and analyses the displacement from that starting value.
+
+The manuscript should cite Arevalo et al. (2017) where the operator is introduced
+and state that the gating operator is not a contribution of this paper. What the
+paper contributes is the use of the learned gate value as a measurement, validated
+against the two permutation controls, and the controlled study around it.

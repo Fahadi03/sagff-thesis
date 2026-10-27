@@ -134,6 +134,7 @@ def build_head(name: str, n_classes: int, heads_cfg: dict, dropout: float) -> nn
 
 
 def count_params(module: nn.Module) -> int:
+    """Number of trainable parameters of a module."""
     return sum(p.numel() for p in module.parameters() if p.requires_grad)
 
 
