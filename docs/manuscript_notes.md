@@ -11,11 +11,15 @@ tree, then from a clean commit with a different handcrafted-feature dimension
 was identical bit for bit: the full per-epoch training curve, the selected and
 final epochs, and all validation metrics, compared with exact floating-point
 equality. Source: `results/tables/lr_reproduction.md`
-(`scripts/compare_lr_reproduction.py`). The nine feature-dimension configurations
-evaluated in both feature selections also agree to the printed precision
-(`results/tables/feature_dim_selection.md`). Logging the per-epoch gate trajectory
-was likewise verified not to perturb training (identical curve, metrics and gate
-statistics to the run made before the logging existed).
+(`scripts/compare_lr_reproduction.py`). Adding the per-epoch gate trajectory and
+the convergence-anchored readout did not perturb training: the 30 stopping-diagnostic
+runs, made before those readouts existed, are identical to the corresponding grid
+runs in the per-epoch curve, best and final epoch, all metrics and every gate
+statistic, 30 of 30. Source: `results/tables/stopping_vs_grid.md`
+(`scripts/compare_stopping_to_grid.py`). (An earlier note also claimed agreement
+between the two feature-dimension selections; the earlier selection was run from
+an uncommitted tree and its scores are not in the repository, so that claim cannot
+be traced and is not to be used.)
 
 ## Footnote: validation of the per-epoch permutation control
 

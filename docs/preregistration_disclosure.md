@@ -41,11 +41,37 @@ would: the stopping point can only suppress the predicted effect, not inflate it
 We report the k-trend on all three readouts (best epoch, final epoch,
 convergence-anchored).
 
-**Holm family size: a typographical error in the registration.** The registered
-text (commit `44bd224`) states that the multiplicity family consists of nine tests
-while enumerating eight (S1 for three datasets, S2a, S2b, S3, S4, S5). This is a
-typographical error in the registration, not a change of plan. The conservative
-reading, m = 9, was used throughout for every reported Holm-adjusted p-value and
-status; Holm adjustment with m = 8 is reported separately as exploratory. No test's
-status differs between the two (`results/tables/T2_preregistered_tests.md`, which
-computes this comparison).
+**Decisions made after registration.** Four decisions were taken after the
+analysis plan was registered at commit `44bd224` (11 October 2026). Before
+registration, the only test-set results in existence were one smoke-test run
+(commit `9b2036f`) and one unlogged sanity run of the fixed-permutation control;
+the first test-set results after registration were those of the stopping
+diagnostic described above (commit `9e44c19`, 12 October 2026).
+
+1. *Feature-dimension re-selection* (commit `7e7f8f6`, 11 October 2026). Made after
+   registration but before the stopping diagnostic and before any grid run, on
+   validation data only; no test file was opened. The selection grid was extended
+   downward until the chosen configuration was bracketed.
+2. *Learning-rate re-selection* (commit `fdb9e52`, 12 October 2026). Made after
+   registration but before the stopping diagnostic and before any grid run, on
+   validation data only and with the baseline head only; test data was never
+   loaded. The grid was extended to 1e-2; the selected value, 3e-3, was unchanged.
+3. *Holm family size* (commit `e73d392`, 13 October 2026). Decided after the grid
+   had completed, in the commit that first computed the registered tests, and
+   therefore after results were visible. The registered text states that the
+   multiplicity family consists of nine tests while enumerating eight (S1 for three
+   datasets, S2a, S2b, S3, S4, S5). We treat this as a typographical error in the
+   registration, not a change of plan, and use the conservative reading, m = 9, for
+   every reported Holm-adjusted p-value and status; Holm adjustment with m = 8 is
+   reported separately as exploratory. No test's status differs between the two in
+   any of the 24 test-by-readout combinations
+   (`results/tables/T2_preregistered_tests.md`, which computes this comparison).
+4. *Reporting rule for the direction of a Wilcoxon test* (commits `e73d392` and
+   `c56a7de`, 13 October 2026). Decided after results were seen; the registration
+   defines neither part. The observed direction of a Wilcoxon test is the sign of
+   the matched-pairs rank-biserial correlation; when the median paired difference
+   has the opposite sign, the direction is reported as ambiguous, with both signs,
+   and is not resolved in either favour. The ambiguity rule applies to one test,
+   S4, which is non-significant under every reading (unadjusted p = 0.6063,
+   Holm-adjusted p = 1.0000 on all three readouts). No test's status therefore
+   depends on this rule.

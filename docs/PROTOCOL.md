@@ -1,30 +1,30 @@
 # SAGFF thesis experiments — research protocol and repository rules (v2)
 
-> **Location and loading.** This file is `docs/PROTOCOL.md`. It was previously
-> `CLAUDE.md` at the repository root (see git history), the file Claude Code loads
-> automatically as project instructions. Under its current name it is NOT loaded
-> automatically: any future Claude Code session must be pointed at it explicitly
-> (e.g. "read docs/PROTOCOL.md before doing anything").
+> **Name of this file.** This file is `docs/PROTOCOL.md`. It was originally named
+> `CLAUDE.md` at the repository root: the configuration file read by the AI coding
+> assistant (Claude Code) that implemented the pipeline. See
+> `docs/ai_use_disclosure.md` and the git history.
 
 Paper: *"When Do Handcrafted Features Help? Scarcity-Aware Feature Fusion for
 Low-Resource Intent Classification in English and Bangla"*
 
-**This is v2. It supersedes the v1 protocol (then named CLAUDE.md) completely.** v1 assumed a local
-GPU and a BANKING77-vs-BNIntent30 comparison. Both have changed. If anything in
-the repo still reflects v1, fix it to match this file.
+**This is version 2 of the protocol. It supersedes version 1 (then named
+`CLAUDE.md`) completely.** Version 1 assumed a local GPU and a
+BANKING77-vs-BNIntent30 comparison; both have changed. Where the repository and
+this file disagree, this file is authoritative.
 
 This repository produces the numbers in a journal manuscript. Every number must
 be reproducible and leakage-free. The rules below are not style preferences —
 they are what makes the results publishable.
 
-**If a rule blocks you, STOP and report it in plain language. Do not work around
-it, do not "temporarily" relax it, do not silently change a config to make a run
-pass.** A failed run that is reported is useful. A passing run that broke a rule
-is worse than useless, because it looks fine.
+**A rule that blocks a step is reported as a blocker; it is not worked around,
+relaxed "temporarily", or bypassed by changing a config so that a run passes.** A
+failed run that is reported is useful. A passing run that broke a rule is worse
+than useless, because it looks fine.
 
 ---
 
-## 0. What changed in v2, and why (read this first)
+## 0. What changed in version 2, and why
 
 **No local GPU.** Training runs on CPU. Full fine-tuning of `xlm-roberta-base`
 is therefore off the table — it would take weeks.
@@ -35,7 +35,7 @@ Each run trains only the fusion head (projection + gate + classifier). This is
 feature-based transfer in the sense of Peters, Ruder & Smith (2019), and it is a
 deliberate methodological choice, not a shortcut: few-sample full fine-tuning is
 unstable across seeds (Dodge et al. 2020), and that instability would swamp the
-gate trend this paper measures. State it that way in the paper.
+gate trend this paper measures. The paper states it in these terms.
 
 **The language comparison is now parallel.** BNIntent30 contains BOTH the
 English source (`text`) and the Bangla translation (`bn_text`) for every row, with
@@ -48,18 +48,17 @@ BANKING77-vs-BNIntent30 comparison would have had.
 
 ---
 
-## 1. NON-NEGOTIABLE rules
+## 1. Non-negotiable rules
 
 ### R1 — Per-run feature extractors are fit on the TRAIN split only
 `TfidfVectorizer`, the chi-squared selector, the char n-gram hasher, and every
 scaler are fit **inside each run, on that run's train split only**, then applied
 unchanged to val and test.
 
-Never fit on the full dataset. Never fit on train+val. Never fit before
-splitting. If a small k-shot train split produces a tiny vocabulary, that is a
-real finding about low-resource settings — handle it with `min_df=1`,
-`max_features`, or hashing, and report what you did. **Do not widen the fitting
-data.**
+They are never fit on the full dataset, on train+val, or before splitting. If a
+small k-shot train split produces a tiny vocabulary, that is a real finding about
+low-resource settings; it is handled with `min_df=1`, `max_features`, or hashing,
+and the handling is reported. **The fitting data is never widened.**
 
 ### R1b — The frozen encoder cache is NOT a violation of R1
 Encoding all utterances (train, val and test) once with the frozen pretrained
@@ -72,8 +71,8 @@ The distinction that matters:
 - **TF-IDF / chi2 / scalers → fit per run on train only. R1 applies.** These
   *are* learned from the data.
 
-Write this distinction as a comment in the caching script, and state it in the
-paper's methodology section. A reviewer will check it.
+This distinction is written as a comment in the caching code
+(`src/embeddings.py`) and is stated in the paper's methodology section.
 
 ### R2 — Identical backbone and identical head hyperparameters across compared models
 All five heads (`baseline`, `concat`, `baseline-cap`, `concat-cap`, `sagff`) and
@@ -85,22 +84,22 @@ mapping). **No per-head or per-regime
 tuning was performed:** the training hyperparameters (§2, "Training") are one
 set, applied unchanged to every head, condition, track and k.
 
-If a model needs a different hyperparameter to train at all, report it instead of
-changing one side only.
+If a model needs a different hyperparameter to train at all, that is reported
+instead of changing one side only.
 
 ### R3 — Splits are fixed, reproducible, and committed as manifests (not as data)
 Splits are generated once per (track, k, seed) by `scripts/make_splits.py` and
 written to `data/splits/`. Training code **reads** splits; it never samples them.
 
 Because the Bangla data has no license (§3), **the split files themselves are
-gitignored.** What gets committed is `data/splits/manifest.json`:
+gitignored.** What is committed is `data/splits/manifest.json`:
 - for each (track, k, seed): the ordered list of row `uid`s per split
 - the sha256 of each generated split file
 - the resolved upstream commit SHA / download URL the rows came from
 
 Reproduction = run the download script, run `make_splits.py`, verify every
-sha256 against the manifest. `scripts/verify_manifest.py` must do this check and
-exit non-zero on any mismatch.
+sha256 against the manifest. `scripts/verify_manifest.py` performs this check and
+exits non-zero on any mismatch.
 
 R3 also fixes, as requirements rather than implementation details:
 - **Nested k-sets.** For a given (track, seed), the k=5 train set is a subset of
@@ -131,21 +130,22 @@ R3 also fixes, as requirements rather than implementation details:
 
 That last one matters: Wilcoxon compares models to each other, it says nothing
 about whether gate reliance changes with k. The paper's central claim needs its
-own statistic. Do not omit it.
+own statistic, and it is reported.
 
-Do not drop a seed because a run is slow. Do not add one because results look
-noisy. Do not switch metrics because Macro-F1 looks bad.
+No seed is dropped because a run is slow, none is added because results look
+noisy, and the metric is not switched because Macro-F1 looks bad.
 
 ### R5 — Full-way evaluation
-Test evaluation always uses **all** intents of the track. Never sample N classes
-for evaluation. `k` restricts only the number of training examples per class.
+Test evaluation always uses **all** intents of the track. N classes are never
+sampled for evaluation. `k` restricts only the number of training examples per
+class.
 
 ### R6 — One JSON log per run, written even on failure
 Every run writes exactly one file to `results/runs/<run_id>.json` with the full
 config, git commit hash, library versions, encoder name and pooling mode, split
 sha256s, per-split sizes, realised feature dimensions, all metrics, wall-clock
-time, and the gate statistics (R7). On an exception, write the JSON with
-`"status": "failed"` and the traceback. Never overwrite an existing run file.
+time, and the gate statistics (R7). On an exception, the JSON is written with
+`"status": "failed"` and the traceback. An existing run file is never overwritten.
 
 Every run JSON also records:
 - the trainable parameter count of its head (all five heads are tabulated in
@@ -161,7 +161,7 @@ Every run JSON also records:
   fixed-point count.
 
 ### R7 — Gate statistics are the paper's main result, not a debug print
-For every `sagff` run, record over the **test** split:
+For every `sagff` run, the following are recorded over the **test** split:
 - `gate_mean` — mean of `g` over all examples and all dimensions
 - `gate_std`
 - `gate_mean_per_dim` — length-`d_model` list
@@ -194,31 +194,31 @@ Two further gate records, added because of the observed stopping behaviour:
   loss never fell below the threshold). It is deterministic, free of validation
   noise and comparable across regimes.
 
-These go in the run JSON. Not optional.
+These are part of every run JSON, not optional.
 
-### R8 — Never report a number that did not come out of `results/runs/`
+### R8 — No number is reported that did not come out of `results/runs/`
 Tables and figures are generated by a script that reads the JSON logs. No
-hand-typed numbers anywhere, ever. This applies to prose too: no sentence in
-this protocol or in any draft may state something the generated numbers contradict.
+hand-typed numbers anywhere. This applies to prose too: no sentence in this
+protocol or in any draft may state something the generated numbers contradict.
 
-**Never quote a single-seed figure anywhere.** Always the mean and range across
+**No single-seed figure is quoted anywhere**; always the mean and range across
 seeds. (Cautionary example: a "2 leaked test rows at k=5" figure was really seed
 13's minimum; the mean over seeds is 7.0, range 2-11.)
 
-### R9 — The two BNIntent30 tracks must contain IDENTICAL rows
+### R9 — The two BNIntent30 tracks contain IDENTICAL rows
 `bnintent30-en` and `bnintent30-bn` are the same rows in two languages. Every
 cleaning step (§3) is applied **at row level, to the union of problems found in
 either language**, producing one shared cleaned row set with stable `uid`s.
 Split generation then runs on `uid`s, so for a given (k, seed) both tracks
 contain exactly the same `uid`s in exactly the same order.
 
-`tests/test_parallel.py` must assert this for every (k, seed). If the two tracks
-ever diverge by a single row, the paper's central English-vs-Bangla comparison
-is no longer controlled.
+`tests/test_parallel.py` asserts this for every (k, seed). If the two tracks
+ever diverged by a single row, the paper's central English-vs-Bangla comparison
+would no longer be controlled.
 
 ---
 
-## 2. The model spec (implement exactly)
+## 2. The model spec
 
 Input per example:
 - `e` — cached frozen-encoder embedding, dimension `d_model` (768 for
@@ -233,16 +233,16 @@ h        = g * h_enc + (1 - g) * h_feat_p       # elementwise
 logits   = Classifier(Dropout(h))
 ```
 
-Things that are easy to get wrong and must not be:
-- **`g` is a VECTOR** of size `d_model`, one gate value per dimension. Not a
-  scalar. If your gate tensor is `(B, 1)` you have built the wrong model.
+Three properties are essential:
+- **`g` is a VECTOR** of size `d_model`, one gate value per dimension, not a
+  scalar. A gate tensor of shape `(B, 1)` would be a different model.
 - **Both branches are LayerNorm'd before the gate.** Not a training trick:
   without it the gate absorbs the scale mismatch between dense encoder
   activations and sparse TF-IDF values, and `gate_mean` stops meaning anything.
   The whole paper rests on `gate_mean` being interpretable.
 - **Gate convention: `g` high = relying on the encoder, `g` low = relying on
-  handcrafted features.** Never flip this. Every figure and sentence depends on
-  the direction.
+  handcrafted features.** This direction is fixed; every figure and sentence
+  depends on it.
 
 ### The five heads (one cached embedding set, five heads)
 | head | handcrafted features | gate | definition |
@@ -262,8 +262,8 @@ Things that are easy to get wrong and must not be:
 2. **`concat-cap` vs `sagff`** — does gating help?
 
 `baseline` and `concat` remain as reference points to prior-work-style setups;
-comparisons involving them are descriptive, not confirmatory. The analysis must
-lead with the two primary comparisons and the signature hypothesis, so it does
+comparisons involving them are descriptive, not confirmatory. The analysis
+leads with the two primary comparisons and the signature hypothesis, so it does
 not drown in five heads.
 
 `concat` exists to answer the first question any reviewer asks: *was the gate
@@ -280,8 +280,9 @@ tests of information and of gating rather than of capacity.
 ### Gate initialisation and the permuted control (the signature hypothesis)
 - **Initialisation.** W_g's bias is set explicitly to `heads.gate_bias_init` in
   `configs/default.yaml` (0.0, so g is approximately 0.5 at initialisation); the
-  W_g weights keep PyTorch's default initialisation under the run seed. The value
-  lives in the config, not in the code.
+  W_g weights keep PyTorch's default initialisation under the run seed. Training
+  code reads the value from the config (`scripts/head_capacity.py` wrote it there
+  when the head configuration was frozen).
 - **Two permutation controls.** Both are identical to `sagff` in every respect
   (same head, same real, train-fitted features), except for the mapping from
   utterance to handcrafted feature vector, which is permuted deterministically
@@ -297,9 +298,10 @@ tests of information and of gating rather than of capacity.
     fixed random vector per training example is a perfect training-set
     identifier: memorizable, non-generalizing. Expected: the gate moves toward the
     features and test Macro-F1 falls to chance. Tests whether the gate is fooled by
-    exploitability. Keep it as is; its failure is the result.
+    exploitability. It is kept as designed; its failure is the result.
 - **What the gate measures — a limitation established before the grid, stated in
-  the paper as known, not hidden.** A sanity run of the fixed-permutation design
+  the paper as known, not hidden.** A sanity run of the fixed-permutation design,
+  made before the analysis plan was registered and not logged in this repository,
   showed the gate moving toward memorizable noise. So `gate_mean` does not measure
   how INFORMATIVE a branch is; it measures how EXPLOITABLE the branch is during
   training — the cheapest route to zero training loss. Under real features the two
@@ -354,8 +356,8 @@ Dataset citations (verified, `docs/citation_checklist.md`):
   Information Technology (ICCIT), IEEE, pp. 1-6, doi:10.1109/ICCIT60459.2023.10440989
   (primary; the peer-reviewed version). Secondary pointer: arXiv:2312.10679. That
   paper spells its source dataset "CLINIC150"; the correct name is **CLINC150**
-  (Larson et al., EMNLP-IJCNLP 2019, doi:10.18653/v1/D19-1131). Our text must not
-  inherit the misspelling.
+  (Larson et al., EMNLP-IJCNLP 2019, doi:10.18653/v1/D19-1131), and the
+  manuscript uses the correct name.
 - **BANKING77:** Casanueva et al., "Efficient Intent Detection with Dual Sentence
   Encoders", NLP4ConvAI 2020, doi:10.18653/v1/2020.nlp4convai-1.5.
 
@@ -365,15 +367,15 @@ much larger label space — and runs last.
 
 ### 3.2 Download, pinned
 - **BNIntent30:** from `JahidBasher/GAN-BnBERT`, path `dataset/BNIntent30/`.
-  Resolve `main` to a **specific commit SHA once**, record it in
-  `configs/data.yaml` and in the manifest, and download that SHA from then on.
-  Never download `main` again.
-- **BANKING77:** the two CSVs from PolyAI's GitHub. Download once into
-  `data/raw/banking77/`, record the URLs and sha256 in `configs/data.yaml`.
-  **Do not depend on the `datasets` loading script or pin `datasets==3.6.0`** —
-  read the CSVs with pandas. One less thing to break in six months.
-- BANKING77's license should be recorded in the README — verify it rather than
-  assuming.
+  `main` was resolved to a **specific commit SHA once**, recorded in
+  `configs/data.yaml` and in the manifest; every download uses that SHA, never
+  `main`.
+- **BANKING77:** the two CSVs from PolyAI's GitHub, downloaded into
+  `data/raw/banking77/`, with URLs and sha256 recorded in `configs/data.yaml`.
+  The pipeline **does not depend on the `datasets` loading script** (or a pinned
+  `datasets==3.6.0`); it reads the CSVs with pandas, which leaves one less thing to
+  break.
+- BANKING77's license is recorded in the README after verification, not assumed.
 
 ### 3.3 Cleaning — applies to ALL tracks, at row level (R9)
 
@@ -408,50 +410,50 @@ branch alone would require: it removes some pairs the encoder would distinguish.
 The deduplication is therefore conservative in the safe direction — it can only
 make evaluation harder, never easier.
 
-Report
-duplicate counts under BOTH exact-string and normalized keys so the difference
-is visible in the paper.
+Duplicate counts are reported under BOTH exact-string and normalized keys so the
+difference is visible in the paper.
 
-Apply in this order, at row level, to the union of problems found in either
-language (R9):
+The steps are applied in this order, at row level, to the union of problems found
+in either language (R9):
 
 1. **Step 1.** Drop rows whose `bn_text` is literally `TRANSLATION_FAILED`.
    After this, BNIntent30 totals must be exactly 4,433 = 2,952 train / 595 val /
-   886 test, matching the published paper. Assert it. (Already verified as
-   matching.)
+   886 test, matching the published paper. The code asserts it (it matches).
 2. **Step 2.** Drop all rows involved in a label conflict — one normalized key
-   carrying more than one distinct intent. Drop EVERY row bearing a conflicted
-   key. Such a row is unlearnable in training and unanswerable in test: any
+   carrying more than one distinct intent. EVERY row bearing a conflicted key is
+   dropped. Such a row is unlearnable in training and unanswerable in test: any
    prediction is scored wrong.
 3. **Step 3.** Resolve cross-split duplicates with priority test > val > train.
-   If one normalized key appears in more than one split, keep the occurrence in
-   the EVALUATION split and drop the training or val occurrence. Rationale for
-   the direction, which must be in the paper: Macro-F1 weights all classes
+   If one normalized key appears in more than one split, the occurrence in the
+   EVALUATION split is kept and the training or val occurrence dropped. Rationale
+   for the direction, which belongs in the paper: Macro-F1 weights all classes
    equally, so removing test rows destabilises the metric, whereas losing a
    small fraction of the much larger training pool costs almost nothing, and the
-   k-shot regimes sample only k per class anyway. Keep the measuring instrument intact;
-   spend from the training material.
+   k-shot regimes sample only k per class anyway. The measuring instrument is kept
+   intact; the training material is spent instead.
 4. **Step 4.** Resolve within-split duplicates. If one normalized key appears
-   more than once inside the same split, keep the lowest uid and drop the rest.
-   Rationale: machine translation collapses distinct English sentences onto one
-   Bangla sentence ("please set an alarm" and "set an alarm" both become the
-   same Bangla string), so Bangla has far more within-split duplicates than
-   English (counts in `results/tables/data_cleaning.md`). Left in place, a Bangla k-shot train set would hold fewer DISTINCT
-   utterances than its English counterpart at the same k — then k does not mean
-   the same thing in the two tracks, so the two lines in the paper's main figure
-   no longer share an x-axis, and any English-vs-Bangla difference would be
-   confounded by effective training-set size.
+   more than once inside the same split, the lowest uid is kept and the rest
+   dropped. Rationale: machine translation collapses distinct English sentences
+   onto one Bangla sentence (for example, a request and a shorter paraphrase of
+   the same request can receive an identical translation), so Bangla has far more
+   within-split duplicates than English (counts in
+   `results/tables/data_cleaning.md`). Left in place, a Bangla k-shot train set
+   would hold fewer DISTINCT utterances than its English counterpart at the same
+   k — then k does not mean the same thing in the two tracks, so the two lines in
+   the paper's main figure no longer share an x-axis, and any English-vs-Bangla
+   difference would be confounded by effective training-set size.
 5. **Step 5.** Assign a stable uid to every surviving row and freeze it. uids
-   must be deterministic and independent of processing order.
+   are deterministic and independent of processing order.
 6. **Step 6.** Write `results/tables/data_cleaning.md`: counts removed per step
    per split, per-class before/after, both duplicate counts (exact and
    normalized), and which language triggered each removal.
 
 **STEPS 2, 3 AND 4 APPLY TO BANKING77 AS WELL.** No dataset is exempt.
 
-**ASSERT AFTER ALL CLEANING:** every class in every track retains at least 20
-training rows (the largest k). Report the three smallest classes per track. If
-any class falls below 20, STOP and report — do not silently reduce k.
+**ASSERTED AFTER ALL CLEANING:** every class in every track retains at least 20
+training rows (the largest k). The three smallest classes per track are reported.
+If any class fell below 20, the pipeline stops with an error; k is never silently
+reduced.
 
 This cleaning report is a paper contribution, not bookkeeping. Genuine
 train/test overlap in a published Bangla benchmark, caused by translation
@@ -460,10 +462,11 @@ collapse, deserves its own paragraph and its own before/after table.
 ### 3.4 Licensing — code public, data not
 GAN-BnBERT has no license file and the paper states no data license. Therefore:
 - the repo may be public, but **no BNIntent30 text, cleaned or raw, is
-  committed** — `data/` is gitignored except `data/splits/manifest.json`
+  committed** — `data/` is gitignored except the two split manifests
+  (`data/splits/manifest.json`, `data/splits_dirty/manifest.json`)
 - reproducibility comes from the download script + manifest + sha256 checks (R3)
-- draft a short email to the authors requesting permission to redistribute
-  derived splits, and save it as `docs/data_license_request.md`
+- a short email to the authors requesting permission to redistribute derived
+  splits is drafted in `docs/data_license_request.md`
 
 ### 3.5 Validation sets are k-matched
 
@@ -476,9 +479,11 @@ portion.
 Model selection — early stopping, epoch choice, anything that touches the
 weights or picks a checkpoint — uses ONLY the k-matched validation set.
 
-Rationale: a run that trains on 150 rows but early-stops on 577 labelled rows is
-not a 5-shot result. In a real 5-shot setting those 577 labels do not exist; if
-they did, they would be training data. Reviewers raise this, and correctly.
+Rationale: a run that trains on 150 rows but early-stops on the 568 labelled
+rows of the full validation portion (`results/tables/data_cleaning.md`, final
+BNIntent30 counts) is not a 5-shot result. In a real 5-shot setting those 568
+labels do not exist; if they did, they would be training data. Reviewers raise
+this, and correctly.
 
 Additionally, each run logs metrics on the FULL val portion under the key
 `val_full_diagnostic`, explicitly marked `"used_for_selection": false`. This
@@ -489,11 +494,9 @@ The k-matching constraint binds at k=5 and k=10. BNIntent30 holds at most 20
 validation rows per class, so at k=20 and k=full the k-matched validation set
 equals the full validation portion. At k=20 the validation set is therefore of
 comparable size to the training set, which matches established few-shot practice
-of using a development set the same size as the training set (Gao et al., 2021 —
-VERIFIED: Gao, Fisch & Chen, "Making Pre-trained Language Models Better Few-shot
-Learners", ACL 2021, §3: "we assume a development set ... of the same size as the
-few-shot training set". Do not re-check; do not carry this note into the
-manuscript).
+of using a development set the same size as the training set (Gao, Fisch & Chen,
+"Making Pre-trained Language Models Better Few-shot Learners", ACL 2021, §3;
+verified, `docs/citation_checklist.md` entry 3).
 
 
 ---
@@ -507,9 +510,9 @@ Three families, **identical across all three tracks**:
 3. **Utterance statistics** — token count, char count, mean token length, digit
    ratio, punctuation ratio, uppercase ratio
 
-The total feature dimension must be **identical for every k**, so that `W_p` has
-a stable shape across runs. Log the realised dimension per family in every run
-config. The dimensions (TF-IDF columns, hash buckets) were selected ONCE on
+The total feature dimension is **identical for every k**, so that `W_p` has
+a stable shape across runs. The realised dimension per family is logged in every
+run config. The dimensions (TF-IDF columns, hash buckets) were selected ONCE on
 k-matched validation data only, with the handcrafted branch alone, by the rule
 "smallest configuration within one SD of the best", with the grid extended
 downward in any dimension whose chosen value sat on the grid's lower edge, until
@@ -517,18 +520,19 @@ the choice was bracketed, and are frozen in `configs/default.yaml`
 (`scripts/select_feature_dims.py`, `results/tables/feature_dim_selection.md`,
 which also states how flat performance is across the grid).
 
-**One F for all tracks — BANKING77 check (Task Q).** The dimensions were selected
-on the two 30-class tracks. The same grid, method and one-SD rule run on
-`banking77` alone (`results/tables/feature_dim_check_banking77.md`, validation
-only) place the frozen configuration just OUTSIDE BANKING77's own one-SD plateau:
-narrowly (about a fifth of BANKING77's seed SD below its threshold), not clearly.
-Under the rule "when uncertain, take the option that weakens our claim", one F is
-kept for every track: a per-track F would add a selection step in favour of the
-handcrafted branch, whereas the frozen F can only disadvantage that branch on
-BANKING77. Consequence, which the paper states: on BANKING77 the handcrafted
-branch runs slightly below its own validation optimum, so a weak handcrafted
-result there may partly reflect this and must not by itself be read as
-"handcrafted features do not transfer".
+**One F for all tracks — the BANKING77 check of the frozen dimensions.** The
+dimensions were selected on the two 30-class tracks. The same grid, method and
+one-SD rule run on `banking77` alone (`scripts/check_feature_dims_banking77.py`,
+`results/tables/feature_dim_check_banking77.md`, validation only) place the frozen
+configuration just OUTSIDE BANKING77's own one-SD plateau: narrowly (about a fifth
+of BANKING77's seed SD below its threshold), not clearly. Under the rule "when
+uncertain, take the option that weakens our claim" (§9), one F is kept for every
+track: a per-track F would add a selection step in favour of the handcrafted
+branch, whereas the frozen F can only disadvantage that branch on BANKING77.
+Consequence, which the paper states: on BANKING77 the handcrafted branch runs
+slightly below its own validation optimum, so a weak handcrafted result there may
+partly reflect this and must not by itself be read as "handcrafted features do not
+transfer".
 
 `uppercase_ratio` stays in every track. As measured
 (`results/tables/feature_overview.md`), the column is degenerate (constant on the
@@ -544,9 +548,9 @@ so the handcrafted branch is never silent — only its word-level component is.
 At k=5, on parallel data at identical k, the TF-IDF family is silent for 9.0% of
 Bangla test items versus 4.5% of English (means over five seeds). Together with
 the higher Bangla test-token OOV rates, this is the second measured piece of
-evidence for retaining the char n-gram family. Report the table.
+evidence for retaining the char n-gram family. The table is reported.
 
-### POS features are DROPPED — do not add them back
+### POS features are DROPPED from all tracks
 A Bangla POS tagger exists (`bnlp_toolkit`'s CRF `BengaliPOS`) and roughly works,
 but using it would require mapping bnlp's BIS-style tags and the English tagger's
 Penn Treebank tags onto a shared UPOS set — otherwise the two languages'
@@ -554,16 +558,17 @@ feature vectors are not comparable, which breaks R9 in spirit — plus pinning a
 model file that bnlp downloads from a GitHub `master` branch at runtime, which
 breaks R3.
 
-That is roughly a day of work for the weakest-contributing family. Dropped from
-**all** tracks, which preserves the control.
+That is roughly a day of work for the weakest-contributing family. It is dropped
+from **all** tracks, which preserves the control, and it is not reintroduced.
 
 The paper frames this honestly and usefully: *the absence of a reliable Bangla
 POS tagger with a tag set comparable to English is itself an instance of the
-low-resource problem this paper studies.* Record it in limitations/future work.
+low-resource problem this paper studies.* It is recorded under limitations and
+future work.
 
 ---
 
-## 5. Scope — do not expand
+## 5. Scope
 
 | Dimension | Value |
 |---|---|
@@ -575,25 +580,28 @@ low-resource problem this paper studies.* Record it in limitations/future work.
 | run conditions | the five heads + `sagff-noise-perepoch` + `sagff-permuted-fixed` |
 
 3 tracks x 4 k x 5 seeds x 7 conditions = **420 runs**, plus 40 leaky-condition
-runs = **460**. On cached embeddings a run costs roughly 14-22 ms per optimizer
-step on this CPU, so wall time scales with training-set size times epochs: a few
-seconds at k=5, about a minute for BNIntent30 at k=full, and several minutes for
-BANKING77 at k=full with the large heads (measured in
-`results/diagnostics/stopping/`).
+runs = **460**. On cached embeddings the measured time per optimizer step is
+1.6-7.2 ms for the small heads (`baseline`, `concat`) and 12.9-26.1 ms for the
+large ones (`baseline-cap`, `concat-cap`, `sagff` and the two controls), as
+per-cell means over seeds (`results/tables/run_timing.md`). Wall time scales with
+training-set size times epochs: a few seconds at k=5, about a minute for
+BNIntent30 at k=full, and several minutes for BANKING77 at k=full with the large
+heads (`results/tables/run_timing.md`).
 
-**Run order matters** (the grid must be resumable and must follow this order, so
-that if time runs out the core claim is already complete):
+**Run order matters.** The grid is resumable and follows this order, so that if
+time runs out the core claim is already complete:
 1. `bnintent30-bn` and `bnintent30-en` — the primary parallel comparison
 2. `banking77` — the generality check
 
 Within each track the conditions run in the order `sagff`, `baseline-cap`,
 `concat-cap`, `sagff-noise-perepoch`, `sagff-permuted-fixed`, `baseline`, `concat`
 (`src.train.CONDITIONS`), and the leaky-condition set runs after all clean runs.
-Our own claims come first: `baseline-cap` is half of primary comparison S4 and is
-never dropped. If time runs out, what gets dropped is the comparison to
-prior-work-style setups (`baseline`, `concat`), not our own claims.
+The paper's own claims come first: `baseline-cap` is half of primary comparison S4
+and is never dropped. If time had run out, what would have been dropped is the
+comparison to prior-work-style setups (`baseline`, `concat`), not the paper's own
+claims.
 
-**Plus the leaky-condition set.** Repeat `bnintent30-bn`, heads `sagff` and
+**Plus the leaky-condition set.** `bnintent30-bn`, heads `sagff` and
 `baseline`, all k, all seeds, on splits built from the official assignment with
 step 1 applied and steps 2-4 NOT applied, tagged `dirty=true` in the run JSON.
 40 runs, seconds each.
@@ -610,16 +618,16 @@ untranslated placeholder rows, isolating the effect of cross-split duplication."
 The dirty condition keeps its own k-matched val sets per 3.5, built from its own
 uncleaned val portion.
 
-**Out of scope — do not build, do not suggest building:** CLINC150, HWU64,
-MASSIVE, the Banglish/code-mixed subset, scalar-vs-vector gate ablation,
-prompt/LLM baselines, hyperparameter search (beyond the two one-off,
-validation-only selections already made and frozen: feature dimensions §4 and
-learning rate §2), POS features.
+**Out of scope:** CLINC150, HWU64, MASSIVE, the Banglish/code-mixed subset,
+scalar-vs-vector gate ablation, prompt/LLM baselines, hyperparameter search
+(beyond the two one-off, validation-only selections already made and frozen:
+feature dimensions §4 and learning rate §2), POS features.
 
-**Optional, only if everything above is finished and verified:** a
-full-fine-tuning supplementary on free cloud GPU — `bnintent30-en` and
-`bnintent30-bn`, `baseline` + `sagff`, all k, **one seed (13)** = 16 runs, to
-show the trend survives fine-tuning. Ask before starting this.
+**Optional supplementary, not run:** a full-fine-tuning supplementary on free
+cloud GPU — `bnintent30-en` and `bnintent30-bn`, `baseline` + `sagff`, all k,
+**one seed (13)** = 16 runs, to show the trend survives fine-tuning. It would be
+started only after everything above is finished and verified, and only with the
+supervisor's agreement.
 
 ---
 
@@ -629,19 +637,20 @@ show the trend survives fine-tuning. Ask before starting this.
 - loads `xlm-roberta-base` once, `model.eval()`, inside `torch.no_grad()`
 - **mean pooling over tokens with the attention mask**, not the `<s>`/CLS token.
   This matters: CLS is only a good sentence representation *after* fine-tuning.
-  With a frozen encoder, mean pooling is substantially better. Record
-  `pooling: "mean"` in every run JSON.
-- fixed `max_length` (state the value; truncation count must be logged).
-  Implemented: `FacebookAI/xlm-roberta-base` pinned to its hub revision in
-  `src/embeddings.py`; `max_length` = 128; the cache per track covers every uid
-  of the clean and leaky conditions; timings, truncation counts and shapes are in
-  each sidecar JSON
+  With a frozen encoder, mean pooling is substantially better. Every run JSON
+  records `pooling: "mean"`.
+- fixed `max_length`, with the truncation count logged. Implemented:
+  `FacebookAI/xlm-roberta-base` pinned to its hub revision in `src/embeddings.py`;
+  `max_length` = 128; the cache per track covers every uid of the clean and leaky
+  conditions; timings, truncation counts and shapes are in each sidecar JSON
 - writes `data/cache/<track>_<encoder>_<pooling>.npy` plus a sidecar JSON with
   the `uid` order, encoder name, revision, pooling, max_length and sha256
-- is idempotent: if the cache and sidecar exist and match, do nothing
+- is idempotent: if the cache and sidecar exist and match, it does nothing
 - training code loads embeddings **by `uid`**, never by positional index
 
-Expect roughly 20 minutes on CPU for all three tracks, once.
+Measured time on the original CPU: 775 s (about 13 minutes) for all three tracks,
+once (the `wall_clock_s` fields of the three sidecars in `data/cache/`, written by
+`scripts/cache_embeddings.py`; an independent re-run from a fresh clone took 845 s).
 
 ---
 
@@ -649,8 +658,9 @@ Expect roughly 20 minutes on CPU for all three tracks, once.
 
 ```
 ├── README.md               # reproduction commands
-├── requirements.txt
-├── .gitignore              # data/ except data/splits/manifest.json
+├── requirements.txt        # direct dependencies
+├── requirements.lock       # exact environment of the runs
+├── .gitignore              # data/ except the two split manifests; docs/drafts/
 ├── configs/
 │   ├── data.yaml           # pinned SHAs, URLs, checksums
 │   └── default.yaml        # frozen feature dims + head config, shared by all heads
@@ -666,7 +676,7 @@ Expect roughly 20 minutes on CPU for all three tracks, once.
 │   ├── data.py             # load, clean, uid assignment
 │   ├── features.py         # the three families, fit/transform
 │   ├── embeddings.py       # frozen-encoder cache: encode once, load by uid
-│   ├── models.py           # baseline / concat / sagff / baseline-cap heads
+│   ├── models.py           # baseline / concat / baseline-cap / concat-cap / sagff heads
 │   ├── train.py            # single run -> one JSON log
 │   └── analysis.py         # JSON logs -> tables + figures
 ├── scripts/
@@ -677,9 +687,12 @@ Expect roughly 20 minutes on CPU for all three tracks, once.
 │   ├── leakage_dose.py     # dose-response table for the leaky condition
 │   ├── select_lr.py        # one-off, validation-only, baseline head only, then frozen
 │   ├── select_feature_dims.py  # one-off, validation-only, then frozen
+│   ├── check_feature_dims_banking77.py  # BANKING77 check of the frozen dimensions
 │   ├── head_capacity.py    # baseline-cap width + parameter table
 │   ├── feature_report.py
-│   ├── stopping_diagnostic.py  # best-epoch vs final-epoch gate (Task M)
+│   ├── stopping_diagnostic.py  # best-epoch vs final-epoch gate
+│   ├── compare_lr_reproduction.py  # LR selection re-run vs earlier run, exact equality
+│   ├── compare_stopping_to_grid.py # stopping-diagnostic runs vs grid runs, exact equality
 │   ├── record_anomalies.py # results/runs_anomalies.md (recorded, never corrected)
 │   ├── rerun_anomaly.py    # bit-for-bit re-run of an anomalous run's spec
 │   ├── smoke_test.py
@@ -688,7 +701,8 @@ Expect roughly 20 minutes on CPU for all three tracks, once.
 │   ├── test_leakage.py     # R1 enforcement
 │   ├── test_parallel.py    # R9 enforcement
 │   ├── test_cleaning.py    # §3.3 assertions
-│   └── test_models.py      # §2 head spec (vector gate, capacity match)
+│   ├── test_models.py      # §2 head spec (vector gate, capacity match)
+│   └── test_analysis.py    # §10 statistics against independent reference values
 ├── results/
 │   ├── runs/               # one JSON per run
 │   ├── selection/          # JSON logs of the one-off selection runs (not results)
@@ -697,15 +711,20 @@ Expect roughly 20 minutes on CPU for all three tracks, once.
 │   ├── tables/
 │   └── figures/
 └── docs/
-    └── PROTOCOL.md         # this file (formerly CLAUDE.md at the repository root)
+    ├── PROTOCOL.md         # this file (originally CLAUDE.md at the repository root)
+    ├── code_map.md         # what each source file does
+    ├── preregistration_disclosure.md  # manuscript-ready registration and disclosure text
+    ├── review_report.md    # pre-handover review
+    ├── ai_use_disclosure.md, citation_checklist.md, data_license_request.md, manuscript_notes.md
+    └── drafts/             # manuscript drafts (gitignored)
 ```
 
 ---
 
 ## 8. The tests
 
-`tests/test_leakage.py` must assert at minimum the following. For each, what it
-PROVES and what it does NOT prove — a test must not be cited for more than it
+`tests/test_leakage.py` asserts at minimum the following. For each, what it
+PROVES and what it does NOT prove — a test is not cited for more than it
 establishes.
 1. A pipeline fit on train, applied to val/test, yields no TF-IDF index outside
    the train-fit vocabulary, and the vocabulary does not grow at transform time.
@@ -727,14 +746,14 @@ establishes.
    training, fit exactly once, on exactly the train texts (fingerprint), and its
    fitted state is unchanged by transforming test. PROVES no refit and no
    fit on the wrong data inside `featurize_run`. Does NOT prove that future
-   training code calls `featurize_run` — train.py must, and its run JSON records
+   training code calls `featurize_run` — train.py does, and its run JSON records
    the fingerprint.
 
-`tests/test_parallel.py` must assert R9 for every (k, seed). PROVES identical uid
+`tests/test_parallel.py` asserts R9 for every (k, seed). PROVES identical uid
 sets, order and labels across the two BNIntent30 tracks. Does NOT prove the two
 texts of a uid are good translations of each other.
 
-`tests/test_cleaning.py` must assert the §3.3 step-1 count (4,433 =
+`tests/test_cleaning.py` asserts the §3.3 step-1 count (4,433 =
 2,952/595/886), that no `TRANSLATION_FAILED` survives, that no dedup key has two
 labels, that no dedup key appears in two splits or twice within a split, and
 that every class keeps at least 20 train rows. PROVES the cleaned row sets meet
@@ -744,47 +763,54 @@ that every class keeps at least 20 train rows. PROVES the cleaned row sets meet
 in (0, 1); the gate bias comes from the config and the mean gate at
 initialisation is ~0.5; feature-free heads ignore `h_feat`; feature heads use
 it; `baseline-cap` is within 20% and `concat-cap` within 1% of `sagff`'s
-parameter count; logged counts match the modules; the grid order is the
-supervisor's ruling; both controls use the `sagff` head with the right
+parameter count; logged counts match the modules; the grid order is the run
+order fixed in §5; both controls use the `sagff` head with the right
 permutation mode; the permutation is deterministic, seed- and split-dependent
 and a true permutation; the per-epoch permutation differs between epochs and is
 reproducible from (seed, epoch). PROVES the architecture and the control's
 construction. Does NOT prove anything about training.
+
+`tests/test_analysis.py` checks the statistics behind §10 (Spearman, Wilcoxon,
+rank-biserial correlation, Holm adjustment, direction and status rules, and the
+gate statistics of a run) against values computed independently of
+`src/analysis.py`. PROVES the reported statistics are computed as specified.
+Does NOT prove the analysis was the right one to register.
 
 `scripts/run_all.py` runs the whole test suite first and **refuses to start the
 grid if anything fails.**
 
 ---
 
-## 9. Working style
+## 9. Methodological conventions
 
-- **When a methodological choice is genuinely uncertain, take the option that
-  WEAKENS our claim.** This rule guides every remaining methodological choice.
-- **Design and confound reasoning may come from the supervisor; every NUMBER comes
-  from the code.** Three times in this project a number asserted from intuition
-  ("runs take seconds", "loss reaches zero by epoch 3", "~76 rows") was wrong and
-  was corrected by measurement. Never write a number that has not been measured.
-- **Smoke test before the grid.** One track, k=5, one seed, one head. Confirm a
-  valid JSON log. Only then run the grid.
-- **Determinism:** seed `random`, `numpy`, `torch`; set
-  `torch.use_deterministic_algorithms(True)` where possible; log anything you
-  cannot make deterministic.
-- **CPU-aware:** set thread counts explicitly and log them. Head training on
-  cached embeddings costs roughly 14-22 ms per optimizer step; a run whose time
-  per step is far above that is recomputing something (e.g. embeddings). Stop and
-  find out why. Long runs are expected only where the step count is large
-  (BANKING77 at k=full).
+- **When a methodological choice is genuinely uncertain, the option that WEAKENS
+  the paper's claim is taken.** This rule guided every methodological choice after
+  it was adopted.
+- **Design and confound reasoning may come from discussion with the supervisor;
+  every NUMBER comes from the code.** Three times in this project a number asserted
+  from intuition ("runs take seconds", "loss reaches zero by epoch 3", "~76 rows")
+  was wrong and was corrected by measurement. No number is written that has not
+  been measured.
+- **Smoke test before the grid.** One track, k=5, one seed, one head, with a valid
+  JSON log confirmed before the grid was run.
+- **Determinism:** `random`, `numpy` and `torch` are seeded;
+  `torch.use_deterministic_algorithms(True)` is set where possible; anything that
+  cannot be made deterministic is logged.
+- **CPU-aware:** thread counts are set explicitly and logged. Head training on
+  cached embeddings costs 1.6-26.1 ms per optimizer step depending on the head
+  (`results/tables/run_timing.md`); a run whose time per step is far above that is
+  recomputing something (e.g. embeddings) and is investigated. Long runs are
+  expected only where the step count is large (BANKING77 at k=full).
 - **`wall_clock_s` is wall time, not a compute measurement.** It can be inflated
   by machine suspension (sleep), as happened to one grid run. Anomalies are
   RECORDED in `results/runs_anomalies.md` (generated by
   `scripts/record_anomalies.py`), never corrected in the run JSONs; analysis
   code excludes a run only from the table kinds named there.
-- **Report blockers early, in plain language.** A surprising number, a count
-  that does not match §3.3, a test that cannot be satisfied — surface it. Never
-  paper over it.
-- Commit after each working stage with a clear message.
-- Do not add dependencies a stage does not need. Do not refactor working code
-  that is not in the way.
+- **Blockers are reported early and in plain language:** a surprising number, a
+  count that does not match §3.3, a test that cannot be satisfied.
+- Each working stage is committed with a clear message.
+- No dependency is added that a stage does not need, and working code that is not
+  in the way is not refactored.
 
 ---
 
@@ -894,3 +920,55 @@ Capacity matched, features on both sides. *Predicted: `sagff` HIGHER.*
 S4 and S5 are the designated primary model comparisons. `baseline` and `concat`
 are reference points only: comparisons involving them, the leaky condition, and
 per-k breakdowns are descriptive.
+
+---
+
+## 11. Decisions made after registration
+
+§10 is the registration and is left exactly as committed. This section, placed
+directly after it, lists every analysis or design decision taken after the plan was
+registered at `44bd224` (2026-10-11 23:53, UTC+6), with its commit and date and
+whether any test-set result was visible when it was made. The same text is in
+`docs/preregistration_disclosure.md`, worded so that the manuscript can quote it.
+No erratum to §10 is needed: none of the sentences corrected in this protocol after
+review lies inside §10.
+
+Timeline of test-set results: before registration, one smoke-test run existed
+(`bnintent30-bn`, k = 5, seed 13, `sagff`; commit `9b2036f`, 2026-10-11 13:19) and
+one unlogged sanity run of the fixed-permutation control (§2). The 30-run stopping
+diagnostic (commit `9e44c19`, 2026-10-12 00:53) was the first set of test-set
+results after registration. The grid ran from 2026-10-12 01:24 to 13:21 at commit
+`8e0a39e`. The registered tests were first computed at commit `e73d392`
+(2026-10-13 02:49).
+
+1. **Feature-dimension re-selection** (commit `7e7f8f6`, 2026-10-11 23:58; run
+   from the registration commit's tree). After registration, before the grid and
+   before the stopping diagnostic, on validation data only (test files never
+   opened). The selection grid was extended downward until the choice was
+   bracketed, and the frozen dimensions became tfidf 256 / chargram 256
+   (`results/tables/feature_dim_selection.md`). No test-set result other than the
+   two pre-registration runs above was visible.
+2. **Learning-rate re-selection** (commit `fdb9e52`, 2026-10-12 00:20; run from
+   `7e7f8f6`). After registration, before the grid and before the stopping
+   diagnostic, on validation data only, with the `baseline` head only (test data
+   never loaded). The grid was extended to 1e-2 and the chosen value stayed 3e-3
+   (`results/tables/lr_selection.md`). No test-set result other than the two
+   pre-registration runs above was visible.
+3. **Holm family size** (commit `e73d392`, 2026-10-13 02:49). Decided after the grid
+   had completed, in the commit that first computed the registered tests, so it is
+   treated as decided after results were visible. §10 states a family of "nine
+   tests" while enumerating eight. Every reported Holm-adjusted p-value and status
+   uses m = 9, the stated and more conservative number; Holm adjustment with m = 8
+   is reported separately as exploratory. No test's status differs between the two
+   in any of the 24 test-by-readout combinations
+   (`results/tables/T2_preregistered_tests.md`).
+4. **Wilcoxon direction rule, including "direction ambiguous"** (observed direction
+   defined as the sign of the matched-pairs rank-biserial correlation in `e73d392`,
+   2026-10-13 02:49; the "direction ambiguous" rule added in `c56a7de`, 2026-10-13
+   03:07). Decided after results were seen: §10 defines neither. When the median
+   paired difference and the rank-biserial correlation disagree in sign, the
+   observed direction is reported as ambiguous, with both signs, and is not
+   resolved in either favour. The rule applies to one test, S4. S4 is
+   non-significant under every reading: unadjusted p = 0.6063 and Holm-adjusted
+   p = 1.0000 (m = 9) on all three readouts, so no test's status depends on the
+   rule.
