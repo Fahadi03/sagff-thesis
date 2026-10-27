@@ -106,7 +106,7 @@ Each split directory `<track>/k<k>_seed<seed>/` holds `train.jsonl`, `val.jsonl`
 
 | Dataset | Source (pinned) | License |
 |---|---|---|
-| BNIntent30 (Hasan et al., ICCIT 2023, doi:10.1109/ICCIT60459.2023.10440989; also arXiv:2312.10679) | `JahidBasher/GAN-BnBERT` @ `213bbcf` (`dataset/BNIntent30/`) | **None stated** (no license file; paper states no data license). No BNIntent30 rows are committed here; only uids and checksums in the two manifests. One single-word example utterance appears in the commit history (in the protocol file at commit `52af2fc`); it is not in the current tree. Permission request draft: `docs/data_license_request.md`. |
+| BNIntent30 (Hasan et al., ICCIT 2023, doi:10.1109/ICCIT60459.2023.10440989; also arXiv:2312.10679) | `JahidBasher/GAN-BnBERT` @ `213bbcf` (`dataset/BNIntent30/`) | **None stated** (no license file; paper states no data license). No BNIntent30 rows are committed in the current tree; only uids and checksums in the two manifests. The commit history contains three example utterances quoted in the protocol file: a one-word Bangla utterance (commit `52af2fc` only) and two short English utterances used to illustrate translation collapse (commits `34c29f9` to `dd08f59`; removed in `7d78a50`). The English side of BNIntent30 derives from CLINC150. Permission request draft: `docs/data_license_request.md`. |
 | BANKING77 (Casanueva et al., NLP4ConvAI 2020, doi:10.18653/v1/2020.nlp4convai-1.5) | `PolyAI-LDN/task-specific-datasets` @ `57ec275` (`banking_data/*.csv`) | CC-BY-4.0, per the repository's LICENSE file (verified via the GitHub license API). |
 
 ## Provenance practice

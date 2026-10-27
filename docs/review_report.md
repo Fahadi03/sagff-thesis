@@ -330,8 +330,9 @@ Nothing else on this list touches a computed number or a generated file.
 every supporting generator; `scripts/run_all.py` creates `logs/` and writes
 `logs/grid.log` itself. M3: the three protocol sentences now give the generated values
 and their sources (none was inside §10, so no erratum was needed). M4: the two quoted
-utterances are replaced by a description; the README states that one single-word
-example utterance remains in the history (`52af2fc`). M5: the README lists the three
+utterances are replaced by a description; the README states which example
+utterances remain in the history (a one-word Bangla utterance in `52af2fc`; the two
+English utterances in `34c29f9` to `dd08f59`, found by a full-history scan). M5: the README lists the three
 §10 text edits and states that S1-S5 are unchanged. M6: four post-registration
 decisions are disclosed in `docs/preregistration_disclosure.md` and in a new §11 of the
 protocol. M7: README and protocol §0-§9 rewritten in protocol voice; §10 is
