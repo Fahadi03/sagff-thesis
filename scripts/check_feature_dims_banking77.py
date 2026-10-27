@@ -1,4 +1,5 @@
-"""Task Q: is the frozen F inside BANKING77's own one-SD plateau?
+"""BANKING77 check of the frozen feature dimensions: is the frozen F inside
+BANKING77's own one-SD plateau?
 
 The feature dimensions were selected on the two 30-class BNIntent30 tracks and
 applied to BANKING77 (77 classes). This script re-runs the SAME extended grid,
@@ -50,7 +51,8 @@ def main() -> None:
     git = require_clean_tree("check_feature_dims_banking77")
     frozen = load_feature_dims()
     frozen_c = (frozen["tfidf_dim"], frozen["chargram_dim"])
-    n_classes = 77
+    manifest = json.loads((ROOT / "data" / "splits" / "manifest.json").read_text(encoding="utf-8"))
+    n_classes = len(manifest["label_names"][TRACK])
     data = {(k, s): load_train_val(TRACK, k, s) for k in KS for s in SEEDS}
     full_keys = {split_shas("full", s) for s in SEEDS}
     assert len(full_keys) == 1, "k=full train/val content differs between seeds; cannot reuse"

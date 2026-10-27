@@ -68,7 +68,7 @@ class SAGFF(nn.Module):
         self.proj = nn.Linear(feat_dim, d_model)           # W_p
         self.ln_feat = nn.LayerNorm(d_model)
         self.gate = nn.Linear(2 * d_model, d_model)        # W_g -> VECTOR gate
-        nn.init.constant_(self.gate.bias, gate_bias_init)  # explicit, from config (G1)
+        nn.init.constant_(self.gate.bias, gate_bias_init)  # explicit, from config (§2)
         self.drop = nn.Dropout(dropout)
         self.classifier = nn.Linear(d_model, n_classes)
 

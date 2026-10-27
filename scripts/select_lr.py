@@ -7,7 +7,7 @@ k-matched validation split at the early-stopping epoch. Test data is never
 loaded (RunSpec.evaluate_test=False).
 
 Rule: the lr with the highest mean validation Macro-F1 over all (track, k, seed)
-cells. Bracketing rule (Task K): if the winner is the LARGEST (smallest) lr in
+cells. Bracketing rule: if the winner is the LARGEST (smallest) lr in
 the grid, the grid is extended upward (downward) by one step of the same
 half-decade ladder (..., 1e-3, 3e-3, 1e-2, 3e-2, 1e-1, ...) and the rule is
 re-applied, until the winner is interior.

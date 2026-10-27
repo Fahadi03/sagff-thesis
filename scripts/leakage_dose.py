@@ -1,4 +1,4 @@
-"""Leakage dose per regime (Stage 1b, Task A) -> results/tables/leakage_dose.md
+"""Leakage dose per regime -> results/tables/leakage_dose.md
 
 For bnintent30-bn, every k and seed, counts
   (i)  test rows whose normalized key appears in that run's train split

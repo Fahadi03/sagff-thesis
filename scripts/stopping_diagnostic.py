@@ -1,4 +1,4 @@
-"""Stopping-point diagnostic (Task M): does the gate depend on WHICH epoch is kept?
+"""Stopping-point diagnostic: does the gate depend on WHICH epoch is kept?
 
 sagff, all three tracks, k in {5, full}, all five seeds (mean and range, never a
 single seed - R8). For each run, compares the gate at the selected best epoch
@@ -15,18 +15,20 @@ import statistics
 import sys
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.analysis import n5_note  # noqa: E402
-from src.train import RunSpec, require_clean_tree, run  # noqa: E402
+from src.train import CONFIG, RunSpec, require_clean_tree, run  # noqa: E402
 
 TRACKS = ("bnintent30-bn", "bnintent30-en", "banking77")
 KS = ("5", "full")
 SEEDS = (13, 42, 87, 100, 2026)
 LOG_DIR = ROOT / "results" / "diagnostics" / "stopping"
 OUT = ROOT / "results" / "tables" / "stopping_diagnostic.md"
-LOSS_ZERO = 0.01
+LOSS_ZERO = float(yaml.safe_load(CONFIG.read_text(encoding="utf-8"))["training"]["converged_loss_threshold"])
 
 
 def agg(vals, fmt="{:.4f}") -> str:
@@ -75,7 +77,7 @@ def main() -> None:
          "split (what the paper analyses); 'final' = the last epoch trained before early stopping "
          f"ended the run. 'Loss < {LOSS_ZERO}' = first epoch whose mean training loss is below "
          f"{LOSS_ZERO}.", "", n5_note(), "",
-         "| track | k | best epoch | final epoch | first epoch with loss < 0.01 | displacement at best | "
+         f"| track | k | best epoch | final epoch | first epoch with loss < {LOSS_ZERO} | displacement at best | "
          "displacement at final | best minus final gate mean | mean abs per-dim displacement, best | "
          "same, final |", "|" + " --- |" * 10]
     for r in rows:

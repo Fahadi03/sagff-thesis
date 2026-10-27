@@ -16,7 +16,7 @@ Selection rule (smallest within one SD of the best):
   chosen              = among configs with mean >= mean(best) - sd, the one with the
                         smallest tfidf_dim + chargram_dim (ties: higher mean)
 
-Bracketing rule (Task K): if the chosen value of a dimension is the SMALLEST value
+Bracketing rule: if the chosen value of a dimension is the SMALLEST value
 of that dimension in the grid, the grid is extended downward by one halving in that
 dimension and the rule is re-applied, until the chosen configuration is interior in
 both dimensions (bracketed by a clearly worse smaller point) or a floor is reached

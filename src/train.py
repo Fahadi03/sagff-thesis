@@ -290,11 +290,11 @@ def _run(spec: RunSpec) -> dict:
         train_loss = total / len(y_tr)
         point = {"epoch": epoch, "train_loss": round(train_loss, 6), "val_macro_f1": round(val, 6)}
         if track_gate:
-            # N: gate trajectory (scalars only); never used for selection
+            # gate trajectory (scalars only); never used for selection
             g_ep = predict("test")[1].numpy()
             point["gate_mean"] = round(float(g_ep.mean()), 6)
             point["gate_std"] = round(float(g_ep.std()), 6)
-            # O: convergence-anchored readout, first epoch with loss below the threshold
+            # convergence-anchored readout: first epoch with loss below the threshold
             if converged_epoch is None and train_loss < converged_threshold:
                 converged_epoch = epoch
                 gate_log.update(gate_stats(g_ep, "gate_converged_"))
@@ -307,8 +307,8 @@ def _run(spec: RunSpec) -> dict:
             if patience_left == 0:
                 break
     final_epoch = len(curve)
-    if spec.head == "sagff" and spec.evaluate_test:
-        # M: gate at the FINAL trained epoch, before restoring the selected one
+    if track_gate:
+        # gate at the FINAL trained epoch, before restoring the selected one
         _, g_final = predict("test")
         gate_log.update(gate_stats(g_final.numpy(), "gate_final_"))
     model.load_state_dict(best["state"])
@@ -323,19 +323,19 @@ def _run(spec: RunSpec) -> dict:
         if spec.head == "sagff":
             gate_log.update(gate_stats(g1.numpy(), "gate_"))
             init_dim = np.array(gate_log["gate_init_mean_per_dim"])
-            gate_log["gate_displacement"] = {   # derived: what the paper analyses (G2)
+            gate_log["gate_displacement"] = {   # derived: what the paper analyses (R7)
                 "mean": round(gate_log["gate_mean"] - gate_log["gate_init_mean"], 6),
                 "mean_abs_per_dim": round(float(np.mean(np.abs(
                     np.array(gate_log["gate_mean_per_dim"]) - init_dim))), 6),
             }
-            gate_log["gate_displacement_final_epoch"] = {   # M: stopping-point sensitivity
+            gate_log["gate_displacement_final_epoch"] = {   # stopping-point sensitivity
                 "epoch": final_epoch,
                 "mean": round(gate_log["gate_final_mean"] - gate_log["gate_init_mean"], 6),
                 "mean_abs_per_dim": round(float(np.mean(np.abs(
                     np.array(gate_log["gate_final_mean_per_dim"]) - init_dim))), 6),
                 "best_minus_final_gate_mean": round(gate_log["gate_mean"] - gate_log["gate_final_mean"], 6),
             }
-            # O: convergence-anchored sensitivity readout (None if loss never fell below the threshold)
+            # convergence-anchored sensitivity readout (None if loss never fell below the threshold)
             gate_log["gate_displacement_converged"] = None if converged_epoch is None else {
                 "epoch": converged_epoch, "loss_threshold": converged_threshold,
                 "mean": round(gate_log["gate_converged_mean"] - gate_log["gate_init_mean"], 6),

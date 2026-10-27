@@ -1,4 +1,4 @@
-"""Task L evidence: do the learning-rate selection runs from the committed tree
+"""Learning-rate reproduction check: do the selection runs from the committed tree
 reproduce the earlier runs (made from an uncommitted tree) bit for bit?
 
 Compares every run present in both results/selection/lr_218bd44_uncommitted/

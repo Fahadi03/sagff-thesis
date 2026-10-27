@@ -7,14 +7,13 @@ artifact, not a result.
 
 Usage:  python scripts/smoke_test.py
 """
-import json
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.train import RunSpec, run  # noqa: E402
+from src.train import GATE_BINS, RunSpec, run  # noqa: E402
 
 SMOKE_DIR = ROOT / "results" / "smoke"
 REQUIRED = ["run_id", "status", "git", "config", "libraries", "determinism", "encoder", "splits",
@@ -29,8 +28,8 @@ def validate(log: dict) -> list[str]:
     for prefix in ("gate_", "gate_init_", "gate_final_"):
         if len(g[f"{prefix}mean_per_dim"]) != d:
             p.append(f"{prefix}mean_per_dim has length {len(g[f'{prefix}mean_per_dim'])}, expected {d}")
-        if len(g[f"{prefix}hist"]) != 20 or sum(g[f"{prefix}hist"]) != n_test * d:
-            p.append(f"{prefix}hist must have 20 bins summing to n_test*d_model")
+        if len(g[f"{prefix}hist"]) != GATE_BINS or sum(g[f"{prefix}hist"]) != n_test * d:
+            p.append(f"{prefix}hist must have {GATE_BINS} bins summing to n_test*d_model")
     for key in ("gate_displacement", "gate_displacement_final_epoch", "gate_displacement_converged"):
         if key not in g:
             p.append(f"missing derived {key}")

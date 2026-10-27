@@ -16,10 +16,13 @@ KS_ORDER = ("5", "10", "20", "full")
 # 1 ------------------------------------------------------------------------- #
 @pytest.mark.parametrize("track", TRACKS)
 def test_vectorizer_indices_within_train_vocabulary(track, split_files):
-    """A pipeline fit on train, applied to val/test, never produces a TF-IDF column outside
-    the train-fit (selected) vocabulary; padding columns stay zero; the vocabulary does
-    not grow at transform time; every split has the fixed total dimension."""
-    from src.features import featurize_run
+    """The TF-IDF vocabulary is exactly the set of word tokens of the TRAIN texts (so it
+    was built from train alone), and in every split each non-zero TF-IDF column is a
+    selected train term that actually occurs in that row, and every selected term in a
+    row has a non-zero column (so indices map through the train-fit vocabulary and
+    nothing else). Padding columns stay zero; the vocabulary does not grow at transform
+    time; every split has the fixed total dimension."""
+    from src.features import featurize_run, word_tokens
     problems = []
     for (t, k, seed), files in split_files.items():
         if t != track:
@@ -30,15 +33,23 @@ def test_vectorizer_indices_within_train_vocabulary(track, split_files):
         except Exception as e:  # report, don't hide
             problems.append(f"k={k} seed={seed}: featurize_run raised {e!r}")
             continue
+        train_tokens = {w for r in files["train"] for w in word_tokens(r["text"])}
+        if set(pipeline._tfidf.vocabulary_) != train_tokens:
+            problems.append(f"k={k} seed={seed}: TF-IDF vocabulary is not the train token set "
+                            f"({len(set(pipeline._tfidf.vocabulary_) ^ train_tokens)} terms differ)")
         vocab_before = len(pipeline._tfidf.vocabulary_)
-        n_sel = pipeline.tfidf_selected
+        column = {term: i for i, term in enumerate(pipeline.selected_terms)}
         for name, M in X.items():
             if M.shape[1] != pipeline.total_dim:
                 problems.append(f"k={k} seed={seed} {name}: dim {M.shape[1]} != {pipeline.total_dim}")
-            cols = M[:, :pipeline.tfidf_dim].tocoo().col
-            if cols.size and cols.max() >= n_sel:
-                problems.append(f"k={k} seed={seed} {name}: TF-IDF column {cols.max()} >= "
-                                f"train-fit vocabulary size {n_sel}")
+            T = M[:, :pipeline.tfidf_dim].tocsr()
+            for i, r in enumerate(files[name]):
+                want = {column[w] for w in word_tokens(r["text"]) if w in column}
+                got = set(T.indices[T.indptr[i]:T.indptr[i + 1]].tolist())
+                if got != want:
+                    problems.append(f"k={k} seed={seed} {name} uid {r['uid']}: TF-IDF columns "
+                                    f"{sorted(got)[:5]} != selected train terms in the row {sorted(want)[:5]}")
+                    break
         if len(pipeline._tfidf.vocabulary_) != vocab_before:
             problems.append(f"k={k} seed={seed}: vocabulary grew during transform")
     check(problems, f"[{track}] feature indices outside the train-fit vocabulary")

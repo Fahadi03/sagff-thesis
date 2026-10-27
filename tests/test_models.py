@@ -34,7 +34,7 @@ def test_sagff_gate_is_a_vector_in_unit_interval():
 
 
 def test_gate_bias_comes_from_config_and_gate_starts_near_half():
-    """G1: explicit gate-bias init from config; mean gate at init ~ sigmoid(bias)."""
+    """Explicit gate-bias init from config (§2); mean gate at init ~ sigmoid(bias)."""
     torch.manual_seed(13)
     head = build_head("sagff", 30, HC, DROPOUT).eval()
     assert torch.all(head.gate.bias == HC["gate_bias_init"]), "gate bias not set from config"
@@ -72,20 +72,48 @@ def test_cap_heads_are_parameter_matched_to_sagff(name, n_classes):
         f"{name}/sagff = {cap / sagff:.4f} at {n_classes} classes (tolerance {TOLERANCE[name]:.0%})"
 
 
-def test_logged_param_counts_match_modules_and_order():
+def _expected_params(name: str, n_classes: int) -> int:
+    """Parameter count written out from the §2 definitions, independently of the
+    modules: LayerNorm(d) = 2d, Linear(a -> b) = a*b + b."""
+    d, F, C = D, FEAT_DIM, n_classes
+    H, Hc = HC["baseline_cap_hidden"], HC["concat_cap_hidden"]
+    ln, lin = 2 * d, lambda a, b: a * b + b
+    feat = lin(F, d) + ln                                # W_p and LayerNorm(h_feat_p)
+    return {"baseline": ln + lin(d, C),
+            "concat": ln + feat + lin(2 * d, C),
+            "sagff": ln + feat + lin(2 * d, d) + lin(d, C),
+            "baseline-cap": ln + lin(d, H) + lin(H, d) + ln + lin(d, C),
+            "concat-cap": ln + feat + lin(2 * d, Hc) + lin(Hc, d) + ln + lin(d, C)}[name]
+
+
+def test_param_counts_match_the_spec_and_the_config():
+    """Modules, the counts logged in configs/default.yaml and the counts derived from the
+    §2 definitions must all agree; a module with an extra or missing layer fails."""
     assert list(HEAD_ORDER) == HC["order"]
     for name in HEAD_ORDER:
         for key, n in (("30_classes", 30), ("77_classes", 77)):
             got = count_params(build_head(name, n, HC, DROPOUT))
-            assert got == HC["param_counts"][name][key], \
-                f"{name} @ {n} classes: config says {HC['param_counts'][name][key]}, module has {got}"
+            want = _expected_params(name, n)
+            assert got == want, f"{name} @ {n} classes: module has {got}, §2 definition gives {want}"
+            assert HC["param_counts"][name][key] == want, \
+                f"{name} @ {n} classes: config says {HC['param_counts'][name][key]}, §2 gives {want}"
 
 
-def test_grid_order_is_the_supervisor_ruling():
-    """Own claims first (sagff, the two capacity-matched heads, the two controls);
-    prior-work-style reference heads last, so they are what gets dropped."""
-    assert CONDITIONS == ("sagff", "baseline-cap", "concat-cap", "sagff-noise-perepoch",
-                          "sagff-permuted-fixed", "baseline", "concat")
+def test_grid_runs_in_the_registered_order():
+    """The grid that scripts/run_all.py actually builds follows docs/PROTOCOL.md §5:
+    bnintent30-bn, bnintent30-en, banking77; within a track the paper's own conditions
+    first and the prior-work-style reference heads last; k 5, 10, 20, full; seeds in
+    order; then the leaky condition (bnintent30-bn, sagff then baseline)."""
+    from scripts.run_all import grid
+    tracks = ("bnintent30-bn", "bnintent30-en", "banking77")
+    conditions = ("sagff", "baseline-cap", "concat-cap", "sagff-noise-perepoch",
+                  "sagff-permuted-fixed", "baseline", "concat")
+    ks, seeds = ("5", "10", "20", "full"), (13, 42, 87, 100, 2026)
+    expected = [(t, c, k, s, False) for t in tracks for c in conditions for k in ks for s in seeds]
+    expected += [("bnintent30-bn", c, k, s, True) for c in ("sagff", "baseline") for k in ks for s in seeds]
+    got = [(r.track, r.condition, r.k, r.seed, r.dirty) for r in grid()]
+    assert got == expected, "scripts/run_all.py does not build the grid in the §5 order"
+    assert len(got) == 460 and CONDITIONS == conditions
 
 
 def test_control_conditions_use_the_sagff_head():
@@ -101,7 +129,7 @@ def test_control_conditions_use_the_sagff_head():
 
 
 def test_permutation_preserves_marginals_and_is_deterministic():
-    """G3: permuting rows keeps the multiset of feature vectors, breaks the mapping."""
+    """Permuting rows keeps the multiset of feature vectors and breaks the mapping."""
     uids = [f"u{i:03d}" for i in range(200)]
     p1, p2 = permutation(13, "test", uids), permutation(13, "test", uids)
     assert np.array_equal(p1, p2), "permutation is not deterministic"
@@ -112,7 +140,8 @@ def test_permutation_preserves_marginals_and_is_deterministic():
 
 
 def test_per_epoch_permutation_changes_every_epoch_and_is_reproducible():
-    """I-A: a fresh mapping each epoch (cannot be memorized), reproducible from (seed, epoch)."""
+    """Control I-A (sagff-noise-perepoch): a fresh mapping each epoch (cannot be
+    memorized), reproducible from (seed, epoch)."""
     uids = [f"u{i:03d}" for i in range(200)]
     perms = [permutation(13, "train", uids, epoch=e) for e in range(1, 6)]
     for a in range(5):

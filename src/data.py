@@ -86,10 +86,10 @@ def dedup_key(s: str) -> str:
 
 
 def exact_key(s: str) -> str:
-    """Exact string, whitespace collapsed only (the Stage 1 key). Used ONLY to
-    report the counterfactual counts that §3.3 asks for; never decides anything.
-    Collapsing whitespace keeps these counts comparable with the Stage 1 report
-    (raw BANKING77 has duplicates that differ only by a trailing space)."""
+    """Exact string, whitespace collapsed only. Used ONLY to report the
+    counterfactual counts that §3.3 asks for; never decides anything. Whitespace is
+    collapsed because raw BANKING77 has duplicates that differ only by a trailing
+    space."""
     return " ".join(s.split())
 
 
@@ -250,7 +250,7 @@ def bnintent30_step1(rows: list[dict]) -> tuple[list[dict], dict]:
         raise AssertionError(
             f"§3.3 step 1 totals do not match the published paper. Expected "
             f"{STEP1_EXPECTED} (total 4,433), got {after1} (total {sum(after1.values())}). "
-            "Something upstream changed. STOP and report; do not adjust the expectation.")
+            "Something upstream changed; the expectation is never adjusted to match.")
     record = {"step": 1, "name": f"bn_text is literally {FAILED_MARKER}",
               "removed": _split_counts(failed), "removed_exact_key": _split_counts(failed),
               "by_language": {"bn": len(failed), "en": 0, "both": 0}, "remaining": after1}
@@ -323,7 +323,7 @@ def assert_min_train(tracks: dict) -> None:
                 if n < MIN_TRAIN_PER_CLASS]
     if bad:
         raise AssertionError(f"Classes below {MIN_TRAIN_PER_CLASS} training rows after cleaning "
-                             f"(STOP and report; do not reduce k): {bad}")
+                             f"(k is never reduced to fit): {bad}")
 
 
 def build_tracks() -> tuple[dict, dict]:
@@ -423,7 +423,7 @@ def _b77_per_class_table(raw, clean) -> list[str]:
 
 
 def _key_level_table(rep: dict) -> list[str]:
-    """Task B: rows that step 3 / step 4 would remove under each key level, using
+    """Rows that step 3 / step 4 would remove under each key level, using
     ONE track's text only, evaluated on exactly the input the applied step got."""
     per_track = (("bnintent30-en", rep["bnintent30"], {"en": "text"}),
                  ("bnintent30-bn", rep["bnintent30"], {"bn": "bn_text"}),
@@ -445,7 +445,7 @@ def _key_level_table(rep: dict) -> list[str]:
 
 
 def _test_removal_note(tracks: dict, rep: dict) -> list[str]:
-    """Task C: which test rows were removed, and why; final test per-class range."""
+    """Which test rows were removed, and why; final test per-class range."""
     L = ["## Test rows removed, and why", ""]
     for name, drep in (("BNIntent30 (both tracks)", rep["bnintent30"]),
                        ("BANKING77", rep["banking77"])):
@@ -490,7 +490,7 @@ def write_report(tracks: dict, rep: dict, data_cfg: dict | None = None) -> str:
           "space, whitespace collapsed. Sorting makes the key word-order-insensitive, because all "
           "three handcrafted feature families are (docs/PROTOCOL.md §3.3). The \"exact key\" column "
           "re-runs the same step on the same input with the exact string (whitespace collapsed "
-          "only, the Stage 1 key); it is reported for comparison only and decides nothing.", "",
+          "only); it is reported for comparison only and decides nothing.", "",
           "Steps 2-4 are applied at row level to the union of problems found in either language "
           "(R9), so `bnintent30-en` and `bnintent30-bn` share one cleaned row set. Steps 3 and 4 "
           "are greedy in a fixed order (step 3: test, val, train, then uid; step 4: uid), and a row "
@@ -533,9 +533,9 @@ def write_report(tracks: dict, rep: dict, data_cfg: dict | None = None) -> str:
     L += ["", "## Duplicate counts under four comparison-key levels", "",
           "Rows that step 3 (cross-split) and step 4 (within-split) would remove, as total "
           "(train/val/test). Keys coarsen left to right. Key 1 = byte-for-byte identical string "
-          "(`byte_key`); key 2 = identical after collapsing whitespace only (`exact_key`, the "
-          "Stage 1 key); key 3 = identical normalized token SEQUENCE (`norm_key`: NFC, lowercase, "
-          "punctuation -> space, whitespace collapsed; the Stage 1b key); key 4 = identical "
+          "(`byte_key`); key 2 = identical after collapsing whitespace only (`exact_key`); "
+          "key 3 = identical normalized token SEQUENCE (`norm_key`: NFC, lowercase, "
+          "punctuation -> space, whitespace collapsed); key 4 = identical "
           "normalized token MULTISET (`dedup_key`, the key actually applied). Each row uses ONE "
           "track's text only, on exactly the input the applied step received, so the BNIntent30 "
           "rows differ from the applied union in the step tables above. Keys 1-3 decide nothing.",

@@ -13,12 +13,22 @@ def cleaned():
     return clean_bnintent30(load_bnintent30_raw())
 
 
-def test_step1_totals_match_published_paper(cleaned):
-    _, rep = cleaned
-    after1 = rep["steps"][0]["remaining"]
-    assert after1 == {"train": 2952, "val": 595, "test": 886}, \
-        f"§3.3 step 1 must leave 2,952/595/886 rows; got {after1}. Upstream data changed - STOP."
+PUBLISHED_AFTER_STEP1 = {"train": 2952, "val": 595, "test": 886}  # BNIntent30 paper, 4,433 rows
+
+
+def test_step1_totals_match_published_paper():
+    """Counted here directly from the raw rows, independently of src.data's own
+    step-1 assertion, so this test can fail even if that assertion were removed."""
+    raw = load_bnintent30_raw()
+    after1 = Counter(r["split"] for r in raw if r["bn_text"].strip() != FAILED_MARKER)
+    assert dict(after1) == PUBLISHED_AFTER_STEP1, \
+        f"§3.3 step 1 must leave 2,952/595/886 rows; got {dict(after1)}. Upstream data changed."
     assert sum(after1.values()) == 4433, f"step 1 total {sum(after1.values())} != 4,433"
+
+
+def test_cleaning_report_records_the_step1_totals(cleaned):
+    _, rep = cleaned
+    assert rep["steps"][0]["remaining"] == PUBLISHED_AFTER_STEP1
 
 
 def test_no_translation_failed_survives(cleaned):
@@ -59,7 +69,7 @@ def test_every_class_keeps_min_train_rows(built, track):
     c = Counter(r["label_id"] for r in t["rows"] if r["split"] == "train")
     bad = [f"{name}: {c.get(i, 0)}" for i, name in enumerate(t["label_names"])
            if c.get(i, 0) < MIN_TRAIN_PER_CLASS]
-    check(bad, f"[{track}] classes below {MIN_TRAIN_PER_CLASS} train rows (STOP; do not reduce k)")
+    check(bad, f"[{track}] classes below {MIN_TRAIN_PER_CLASS} train rows (k is never reduced to fit)")
 
 
 def test_uids_unique_and_stable(cleaned):

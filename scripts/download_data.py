@@ -69,7 +69,7 @@ def check_or_record(recorded: dict, name: str, digest: str) -> None:
     """Record a file's sha256 the first time; afterwards it must match."""
     if name in recorded and recorded[name] != digest:
         sys.exit(f"ERROR: sha256 mismatch for {name}\n  recorded: {recorded[name]}\n"
-                 f"  got:      {digest}\nThe upstream file changed. Do not continue; report it.")
+                 f"  got:      {digest}\nThe upstream file changed; the pipeline stops here.")
     recorded[name] = digest
 
 
