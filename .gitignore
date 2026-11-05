@@ -17,3 +17,6 @@ logs/
 
 # --- Manuscript drafts: not committed yet (they also quote dataset text)
 docs/drafts/
+
+# --- Journal manuscript (LaTeX): not committed
+paper/
