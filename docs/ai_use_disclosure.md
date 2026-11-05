@@ -40,7 +40,7 @@ What the policy page states, as read on 2026-10-26:
 > experimental design and the control conditions; the author evaluated each
 > proposal and accepted, modified or rejected it. All decisions are recorded with
 > their justifications in the project protocol, the analysis plan was registered
-> before any experiment was run, no reported number was entered by hand, and an
+> before any grid run, no reported number was entered by hand, and an
 > automated test suite gates the experiments. All figures were generated
 > programmatically from the run records by `src/analysis.py`; no generative AI was
 > used to create or alter any figure.
