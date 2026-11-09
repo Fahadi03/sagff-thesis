@@ -1061,3 +1061,28 @@ the Spanish and Hindi translations are new, unreviewed
 API output of the same English rows. The new tracks also inherit the Bangla-driven
 row removals of §3.3 (R9) rather than being cleaned on their own text. Both points
 are reported with the results.
+
+### Amendment 2026-11-09 (before any translation)
+
+Pins the cross-split sensitivity analysis named under "Rows" above as RESCORING,
+not retraining. Made before any translation, embedding or run of either new track;
+the text above is unchanged.
+
+- For each language and each run, a test row is "colliding" if its dedup key (§3.3
+  key, on that language's translated text) equals the key of any row in that run's
+  own training subset (k- and seed-specific).
+- Sensitivity analysis: the same trained models; test Macro-F1 recomputed on the
+  test split with the colliding rows removed; E1 recomputed on these scores with
+  the same test and Holm family. No model is retrained.
+- Implementation: each run of the extension records its predicted label for every
+  test uid, so the rescoring uses the same predictions and needs no re-inference.
+- Reported per language and k: number of colliding test rows (mean and range over
+  seeds).
+- Justification (mechanism, not result): leakage inflates the score at evaluation,
+  when the model meets an item it already saw in training; removing those items
+  from scoring removes the inflation without changing the training pool, and keeps
+  the run count fixed. This follows the practice of evaluating on the
+  non-overlapping subset (Lewis et al., 2021; `docs/citation_checklist.md`
+  entry 26).
+- If no cross-split collisions exist for a language, the sensitivity analysis is
+  reported as not applicable.
