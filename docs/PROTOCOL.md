@@ -972,3 +972,92 @@ results after registration. The grid ran from 2026-10-12 01:24 to 13:21 at commi
    non-significant under every reading: unadjusted p = 0.6063 and Holm-adjusted
    p = 1.0000 (m = 9) on all three readouts, so no test's status depends on the
    rule.
+
+---
+
+## 12. Spanish and Hindi extension (post-registration, registered before any run)
+
+**Status and timing.** This extension was requested by the supervisor after the
+main grid, the registered analyses (§10) and the manuscript results were complete.
+It is therefore post-registration with respect to §10, and is registered here, in
+its own commit (`git log --format=%h -S "## 12. Spanish and Hindi extension"
+-- docs/PROTOCOL.md` prints it), on 2026-11-09, BEFORE any translation, embedding
+or run of either new track. At that commit no Spanish or Hindi text, embedding
+cache, split or run exists in the repository or under `data/`. §10, §11, every
+existing track, split, run and result, and every existing table and figure are
+unchanged by this extension. Any change to this section after the first
+translation is made is recorded as a dated amendment with its justification,
+under the same rule as §10: justified by a mechanism, never by the direction of a
+result.
+
+**Purpose.** The Bangla gain of `sagff` over `baseline` at small k could reflect
+machine translation itself, a general lower-resource-language effect, or neither.
+Two further machine-translated tracks of the same rows separate these accounts:
+Spanish (well represented in XLM-R) and Hindi.
+
+### Design
+
+- **Tracks.** `bnintent30-es` and `bnintent30-hi`: machine translations (source
+  `en`; targets `es`, `hi`) of the English `text` field of BNIntent30, made with
+  the Google Cloud Translation API. Recorded for each language: the API version,
+  the date of translation, and the SHA-256 of the translation file. Translations
+  are cached under `data/` (gitignored) and never committed (§3.4).
+- **Rows.** Exactly the existing clean rows and splits of `bnintent30-en` /
+  `bnintent30-bn` (same uids). No re-cleaning: the clean row set is not
+  recomputed on the new languages, and the existing tracks and results are
+  unchanged. As a diagnostic, report per language the deduplication-key
+  collisions among these rows on the translated text (label conflicts,
+  cross-split, within-split; same key as §3.3). If cross-split collisions exist,
+  also report a sensitivity run excluding them.
+- **k-shot subsets.** The same uids per (k, seed) as `bnintent30-en` /
+  `bnintent30-bn`, in the same order; the existing split manifest is not
+  modified. A test verifies the identity of uids per (k, seed, split) across
+  en, bn, es and hi before any run, and must pass before the grid may run.
+- **Frozen as in the main grid.** Encoder `xlm-roberta-base` at the same pinned
+  revision, mean pooling, maximum length 128 (the longest tokenised utterance of
+  each new track is recorded; any truncation is reported); feature families and dimensions
+  (tfidf 256 + chargram 256 + stats 6, F = 518), fit on each run's training split
+  only (R1); learning rate 3e-3; early stopping on the k-matched validation split
+  with the same patience and epoch cap; seeds {13, 42, 87, 100, 2026};
+  k in {5, 10, 20, full}. No tuning of any kind on the new tracks.
+- **Heads.** `baseline` and `sagff`. 2 heads x 4 k x 5 seeds = 40 runs per
+  language, 80 in total.
+- **Isolation from existing results.** The 80 run logs are written to a separate
+  directory, not to `results/runs/`, so that regenerating every existing table
+  and figure reproduces them exactly. New results go to new tables only
+  (`results/tables/T8_*`). No existing table or figure changes.
+
+### Predictions and decision rule
+
+- **E1 (primary, per language).** Paired test Macro-F1 difference `sagff` minus
+  `baseline`, pooled over k in {5, 10} and the five seeds (n = 10 pairs per
+  language), two-sided Wilcoxon signed-rank test (`scipy.stats.wilcoxon`, zero
+  differences dropped). Holm correction over the 2 languages (a family of its
+  own, separate from §10's), alpha = 0.05. Reported as in §10: statistic, p,
+  Holm-adjusted p, n (and n after dropping zeros), median paired difference and
+  matched-pairs rank-biserial correlation. The observed direction follows the
+  rule of §11 item 4; "significantly positive" means Holm-adjusted p < 0.05 with a
+  positive observed direction.
+- **Interpretation, registered in advance.**
+  - es and hi both significantly positive: consistent with a
+    machine-translation artefact.
+  - hi positive, es not: consistent with a lower-resource-language effect.
+  - neither positive: the Bangla gain is not explained by translation or by a
+    general lower-resource effect.
+  - Any other pattern (for example es positive and hi not) is reported as
+    observed, without a registered interpretation.
+- **Registered expectations.** es: not significantly positive (XLM-R represents
+  Spanish well). hi: no directional expectation.
+- **E2 (descriptive).** Spearman rho(k, gate displacement) per language, n = 20
+  (4 k x 5 seeds), on the primary readout of §10 (displacement at the epoch
+  selected by early stopping). Not part of any test family.
+- **E3 (descriptive).** `baseline` test Macro-F1 at k = 5 for es, hi, en and bn
+  side by side (en and bn from the existing grid, unchanged).
+
+**Known differences from the Bangla track, stated in advance.** The Bangla text
+was produced by the dataset's authors with the Google Translator API and then
+manually reviewed (Hasan et al., 2023; `docs/citation_checklist.md` entry 4a);
+the Spanish and Hindi translations are new, unreviewed
+API output of the same English rows. The new tracks also inherit the Bangla-driven
+row removals of §3.3 (R9) rather than being cleaned on their own text. Both points
+are reported with the results.
