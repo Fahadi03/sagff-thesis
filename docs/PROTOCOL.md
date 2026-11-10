@@ -1086,3 +1086,48 @@ the text above is unchanged.
   entry 26).
 - If no cross-split collisions exist for a language, the sensitivity analysis is
   reported as not applicable.
+
+### Amendment 2026-11-10 (after translation, before any embedding or run)
+
+**The translations were written by Claude, not by the Cloud Translation API.** This
+replaces the registered translation method under "Tracks" above ("made with the
+Google Cloud Translation API"). It is recorded after the translations were made
+and before any embedding, split, run or quality check of either new track. The
+text above is unchanged.
+
+- **How the translations were made** (confirmed from the original session
+  transcript). Claude (Anthropic, model Opus 5.5), in a Claude Code session in VS
+  Code on another PC on 2026-11-10, read only the English `text` field of each
+  BNIntent30 per-intent file (150 sentences at a time). It wrote the Hindi and
+  Spanish translations itself into per-file text files, one "Hindi<TAB>Spanish"
+  line per sentence. A small merge script inserted them into the per-intent files
+  as `hi_text` and `es_text` without altering any other field. No translation
+  library, model or external API was used. The user's instruction is saved
+  verbatim in `docs/translation_prompt.md`.
+- **What was checked on arrival** (2026-11-10, in this repository). For all 4,500
+  raw uids, the incoming copy's `text`, `bn_text`, `intent` and `split` are
+  identical to the repository's `data/raw/bnintent30/` files (0 differences), and
+  all 4,096 clean uids have non-empty Spanish and Hindi text. The repository's raw
+  files, clean files and splits still match their recorded checksums.
+- **Reference files.** The intermediate text files and the merge script stayed on
+  that PC and are no longer available. The reference translations are therefore
+  the two extracted files below, one `{uid, text}` line per raw uid (4,500 lines
+  each, gitignored, never committed), identified by their SHA-256:
+  - `data/extension/es.jsonl`:
+    `26587bc208e24739b203c1c3ac8f25bfccbf9ea4ad10c6e0fee7b925cc4eb727`
+  - `data/extension/hi.jsonl`:
+    `c4b272ccaab6e76c902ffecce36285f357ddd0ad108813d686fbb2dfc5feed7a`
+
+  Every later step reads these files and fails if either hash differs.
+- **"API version and date" (registered above)** are replaced by the model name
+  (Opus 5.5), the date (2026-11-10) and the two hashes above.
+- **Consequence.** The three translated tracks no longer share a translation
+  process. Bangla was machine-translated with Google Translate and reviewed by its
+  authors; Spanish and Hindi were written by an LLM from English only and were not
+  reviewed. A difference between bn and es/hi may therefore reflect the
+  translation process as well as the language. In the E1 interpretations above,
+  "machine-translation artefact" can only be read as "an artefact of translated
+  text", not as an artefact of one shared translation system. The decision rule
+  itself, E1-E3 and every other design element are unchanged.
+- **Disclosure.** Claude's generation of the Spanish and Hindi data is recorded in
+  `docs/ai_use_disclosure.md`.

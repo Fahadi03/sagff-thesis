@@ -45,6 +45,16 @@ What the policy page states, as read on 2026-10-26:
 > programmatically from the run records by `src/analysis.py`; no generative AI was
 > used to create or alter any figure.
 
+**Addition for the Spanish and Hindi extension** (docs/PROTOCOL.md §12; include it
+in the Methods subsection above if the extension is reported):
+
+> The Spanish and Hindi versions of BNIntent30 used in the extension were generated
+> by Claude (Anthropic, model Opus 5.5), which translated the English source
+> sentences directly, without a translation system or external API; the
+> instruction it received is in `docs/translation_prompt.md`. The translations were
+> not reviewed by a human translator. The Bangla track is the dataset's original
+> machine translation (Google Translate), reviewed by its authors.
+
 ## 1b. Formal declaration (end of manuscript, immediately before the references)
 
 Heading as stated on Elsevier's policy page on 2026-10-26; re-check it, and the
