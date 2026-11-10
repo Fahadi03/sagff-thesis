@@ -28,6 +28,7 @@ import csv
 import hashlib
 import json
 import platform
+import re
 import sys
 from collections import defaultdict
 from datetime import date
@@ -271,6 +272,26 @@ def main() -> None:
         any_flag |= bool(flagged)
         T.append(f"- {lang}: " + ("; ".join(f"{n} ({d:+.3f})" for n, d in sorted(flagged, key=lambda x: x[1]))
                                   if flagged else "none"))
+    # 2b. Spanish 'weather' vs 'time' (counts only): 'tiempo' means both weather and time
+    wl, tl = names.index("weather"), names.index("time")
+    T += ["", "### Spanish `weather` and `time` (counts only)", "",
+          "Spanish *tiempo* means both 'weather' and 'time'. Test items of the two intents classified as the "
+          "other, per language, and the number of Spanish items containing the whole words *tiempo*, *hora* "
+          "and *clima* (case-insensitive):", "",
+          "| language | weather test items predicted as time | time test items predicted as weather |",
+          "| --- | --- | --- |"]
+    for lang in ("en",) + LANGS:
+        p = preds[lang]
+        T.append(f"| {lang} | {int(((yt == wl) & (p == tl)).sum())} of {int((yt == wl).sum())} | "
+                 f"{int(((yt == tl) & (p == wl)).sum())} of {int((yt == tl).sum())} |")
+    T += ["", "| es items | n | contain tiempo | contain hora | contain clima |", "| --- | --- | --- | --- | --- |"]
+    words = {w: re.compile(rf"\b{w}\b", re.IGNORECASE) for w in ("tiempo", "hora", "clima")}
+    for lid in (wl, tl):
+        for sp in ("train", "test"):
+            texts = [r["es"] for r in rows if r["label_id"] == lid and r["split"] == sp]
+            T.append(f"| {names[lid]}, {sp} | {len(texts)} | "
+                     + " | ".join(str(sum(bool(words[w].search(t)) for t in texts)) for w in words) + " |")
+
     T += ["", "## 3. Review sheet", "",
           f"{len(sample)} uids ({REVIEW_PER_INTENT} per intent; sha256 ranking with seed {REVIEW_SEED} and salt "
           "'review' over all clean rows): `results/extension/review_sample_uids.txt`. The sheet with the four "

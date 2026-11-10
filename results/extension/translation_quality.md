@@ -110,6 +110,24 @@ Intents whose F1 is more than 0.15 below English:
 - es: weather (-0.397); time (-0.229)
 - hi: none
 
+### Spanish `weather` and `time` (counts only)
+
+Spanish *tiempo* means both 'weather' and 'time'. Test items of the two intents classified as the other, per language, and the number of Spanish items containing the whole words *tiempo*, *hora* and *clima* (case-insensitive):
+
+| language | weather test items predicted as time | time test items predicted as weather |
+| --- | --- | --- |
+| en | 0 of 28 | 0 of 28 |
+| bn | 0 of 28 | 0 of 28 |
+| es | 15 of 28 | 0 of 28 |
+| hi | 0 of 28 | 0 of 28 |
+
+| es items | n | contain tiempo | contain hora | contain clima |
+| --- | --- | --- | --- | --- |
+| weather, train | 98 | 43 | 0 | 1 |
+| weather, test | 28 | 27 | 0 | 0 |
+| time, train | 88 | 0 | 86 | 0 |
+| time, test | 28 | 0 | 26 | 0 |
+
 ## 3. Review sheet
 
 150 uids (5 per intent; sha256 ranking with seed 13 and salt 'review' over all clean rows): `results/extension/review_sample_uids.txt`. The sheet with the four texts, the LaBSE scores and empty rating columns (adequacy 1-5, intent preserved y/n, comment, per language) is `data/extension/review_sheet.csv` (UTF-8 with BOM; gitignored, not committed).
