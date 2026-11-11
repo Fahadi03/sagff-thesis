@@ -1131,3 +1131,96 @@ text above is unchanged.
   itself, E1-E3 and every other design element are unchanged.
 - **Disclosure.** Claude's generation of the Spanish and Hindi data is recorded in
   `docs/ai_use_disclosure.md`.
+
+### Amendment 2026-11-12: Bangla translation-method control (registered before any translation)
+
+**Status and timing.** Registered in its own commit on 2026-11-12, AFTER the results
+of the main grid and of E1-E3 (tables T8a-T8e) were visible, and BEFORE any
+translation, embedding or run of the new track. At this commit no file
+`data/extension/bn_cl.jsonl`, split, cache or run of the track exists. The text
+above is unchanged. Any later change is a dated note, justified by a mechanism,
+never by the direction of a result.
+
+**Purpose.** The existing Bangla text is Google Translate output reviewed by the
+dataset's authors; es and hi were written by Claude. A difference between bn and
+es/hi therefore confounds language with translation method. This control holds the
+language at Bangla and changes the translation method.
+
+**Design.**
+- **Track `bnintent30-bn-cl`.** Bangla written by Claude (Anthropic), model
+  Fable 5.2 (model ID `claude-fable-5-2`), in a Claude Code session of the Claude
+  desktop app on the repository's PC, from the English text only, for the 4,096
+  clean uids. Procedure as for es/hi: one batch per intent (that intent's clean
+  rows, at most 150 sentences), each batch file holding a row index, the uid and
+  the English sentence; the translator writes one Bangla line per row index; a
+  merge script joins them by index and uid, and checks that every row has exactly
+  one non-empty line containing Bengali script. No translation library, model or
+  external API is used.
+- **Blindness to the existing Bangla.** The translator reads only uid, English
+  text and intent, from batch files exported from `data/clean/bnintent30-en.jsonl`.
+  It does not open `bn_text`, `data/clean/bnintent30-bn.jsonl` or any Bangla split
+  file. The share of rows whose bn-cl text is identical to the original `bn_text`
+  is computed by script, not by reading.
+- **Rows, splits, k-subsets.** Exactly the clean rows and splits of
+  `bnintent30-en` / `bnintent30-bn` (same uids, order and labels), in its own split
+  directory with its own manifest; a test verifies uid identity per
+  (k, seed, split) across en, bn, es, hi and bn-cl and must pass (not be skipped)
+  before any run.
+- **Frozen settings.** As in the main grid and E1: encoder revision, mean pooling,
+  maximum length 128 (longest utterance and any truncation reported), feature
+  families and dimensions (F = 518), learning rate 3e-3, early stopping, seeds
+  {13, 42, 87, 100, 2026}, k in {5, 10, 20, full}. No tuning.
+- **Heads and runs.** `baseline` and `sagff`: 2 x 4 x 5 = 40 runs. Logs go to the
+  extension run directory (`results/extension/runs/`), never `results/runs/`;
+  each run saves its predicted label per test uid.
+- **Isolation.** New results go to new tables only (`results/tables/T9_*`) and new
+  files under `results/extension/`. T8a-T8e and every other existing table, figure
+  and run are unchanged and must regenerate identically.
+- **Provenance.** The intermediate batch files (inputs and the translator's
+  outputs) are kept under `data/extension/provenance/` (gitignored). The SHA-256
+  of `data/extension/bn_cl.jsonl` is recorded in a further dated note after
+  translation and before any embedding or run; every later step fails if it
+  differs.
+
+**Prediction and decision rule.**
+- **E4 (primary, a single test).** Paired test Macro-F1 difference `sagff` minus
+  `baseline` on bn-cl, pooled over k in {5, 10} and the five seeds (n = 10),
+  two-sided Wilcoxon signed-rank (`scipy.stats.wilcoxon`, zero differences
+  dropped), alpha = 0.05, no multiplicity adjustment (one test, a family of its
+  own). Reported as E1 is; observed direction by the rule of §11 item 4;
+  "significantly positive" means p < 0.05 with a positive observed direction.
+- **Interpretation, registered in advance.**
+  - Significantly positive: the Bangla gain is not specific to the Google
+    translation.
+  - Not significantly positive: the gain may depend on the Google-translated
+    text.
+  - A significantly negative result is reported as observed; for the
+    interpretation it counts as not significantly positive.
+- **Registered expectation.** None: no directional expectation.
+
+**Descriptive (no test family).**
+- `baseline` test Macro-F1 at k = 5 on bn-cl next to bn (en, es, hi for
+  reference).
+- Spearman rho(k, gate displacement at the selected epoch) on bn-cl, n = 20.
+- Test Macro-F1 of both heads per k on bn-cl next to bn, and the E4 statistic
+  computed on the original bn runs of the main grid, for reference.
+- Collision diagnostics on the bn-cl text and the rescoring sensitivity analysis,
+  as for es/hi (amendment 2026-11-09).
+- LaBSE similarity to English and intent preservation for bn-cl, as for bn, es
+  and hi; no row is excluded on that basis.
+- Share of rows where the bn-cl text is identical to the original `bn_text`
+  (exact string, and under the §3.3 key).
+
+**Known limits, stated in advance.**
+- Different session, PC and model from the es/hi translation (es/hi: Opus 5.5 on
+  another PC, 2026-11-10; bn-cl: Fable 5.2 on this PC). bn-cl against es/hi is
+  therefore not a same-translator comparison; the control compares bn-cl with the
+  original bn.
+- The translating session has worked on this repository before and may have been
+  shown a small number of original `bn_text` strings during the leakage audit; the
+  model may also have seen public BNIntent30 text in training. Blindness is
+  procedural (what the translation step reads), and the identical-row share above
+  is its only measured check.
+- Like es and hi, the bn-cl text is not reviewed by a human translator.
+- With n = 10 the test has limited power; a non-significant E4 is not evidence
+  that the two Bangla texts behave identically.
