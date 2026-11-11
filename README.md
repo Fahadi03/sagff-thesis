@@ -73,6 +73,47 @@ time on the original machine, of which 8.1 h was a machine sleep during one run
 (`results/runs_anomalies.md`); without the sleep the runs took 3.8 h (sum of the
 `wall_clock_s` fields minus the recorded sleep).
 
+### Spanish and Hindi extension (docs/PROTOCOL.md §12)
+
+The extension adds two tracks, `bnintent30-es` and `bnintent30-hi`: the clean
+BNIntent30 rows and splits with the text translated from English. It is
+post-registration; its plan, predictions and amendments are in §12 of the protocol.
+It has its own splits, embedding cache and run directory, so none of the commands
+above is affected by it.
+
+The translations are not in the repository and cannot be rebuilt by a script: they
+were written by Claude from the English text (§12, amendment 2026-11-10;
+`docs/translation_prompt.md`). The reference files are `data/extension/es.jsonl` and
+`data/extension/hi.jsonl`, one `{"uid", "text"}` line per raw uid, identified by the
+SHA-256 hashes recorded in §12. Every script below stops if a hash differs. Without
+those two files, only the last command runs: it rebuilds T8a-T8d from the committed
+run logs and then stops at T8e, which needs the split files.
+
+```bash
+# E1. Splits and collision diagnostics (needs data/extension/es.jsonl and hi.jsonl)
+.venv/Scripts/python scripts/extension_prepare.py     # data/extension/splits/ (checked against its manifest), results/extension/collisions.md
+
+# E2. Translation-quality checks (downloads LaBSE, about 1.9 GB; descriptive, no row is excluded)
+.venv/Scripts/python scripts/translation_quality.py   # results/extension/translation_quality.md, low_similarity_uids.txt, review_sample_uids.txt
+
+# E3. Tests, including the uid-identity test across en, bn, es and hi
+.venv/Scripts/python -m pytest tests/ -v
+
+# E4. Frozen-encoder embeddings for es and hi (about 7 minutes; separate cache)
+.venv/Scripts/python scripts/extension_embed.py       # data/extension/cache/, results/extension/embeddings.md
+
+# E5. The 80 runs (about 15 minutes): test suite first, committed code required
+.venv/Scripts/python scripts/run_extension.py         # results/extension/runs/; progress also appended to logs/extension.log
+
+# E6. The registered analysis (E1, E2, E3, rescoring), from the committed run logs
+.venv/Scripts/python scripts/extension_analysis.py    # results/tables/T8a-T8e
+```
+
+`scripts/run_extension.py` skips every run whose log already exists and refuses to
+start unless `tests/test_extension.py` passed (a skip does not count). On a clone
+without the extension data, `tests/test_extension.py` is skipped and the main test
+suite is unaffected.
+
 ### Outputs that are not byte-identical on regeneration, and why
 
 - `results/tables/stopping_diagnostic.md` records the commit that generated it,
