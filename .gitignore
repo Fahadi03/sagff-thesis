@@ -7,6 +7,13 @@ data/splits/*
 !data/splits_dirty/
 data/splits_dirty/*
 !data/splits_dirty/manifest.json
+# §12 extension (es, hi): translations, split files and caches stay local; only the
+# split manifest (uids + sha256, no text) is tracked.
+!data/extension/
+data/extension/*
+!data/extension/splits/
+data/extension/splits/*
+!data/extension/splits/manifest.json
 
 # --- Environment / tooling
 .venv/

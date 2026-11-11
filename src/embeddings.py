@@ -33,10 +33,12 @@ BATCH_SIZE = 64
 N_THREADS = 6      # set explicitly and logged (§9)
 
 
-def cache_paths(track: str) -> tuple[Path, Path]:
-    """(matrix, sidecar) paths of a track's embedding cache."""
+def cache_paths(track: str, cache_dir: Path | None = None) -> tuple[Path, Path]:
+    """(matrix, sidecar) paths of a track's embedding cache. `cache_dir` is an opt-in
+    override for the §12 extension (a separate cache); None means data/cache/."""
+    base = CACHE if cache_dir is None else Path(cache_dir)
     stem = f"{track}_{ENCODER_SHORT}_{POOLING}"
-    return CACHE / f"{stem}.npy", CACHE / f"{stem}.json"
+    return base / f"{stem}.npy", base / f"{stem}.json"
 
 
 def sha256_file(p: Path) -> str:
@@ -79,10 +81,10 @@ def encode(texts: list[str]) -> tuple[np.ndarray, int, dict]:
     return np.concatenate(out), truncated, env
 
 
-def load_embeddings(track: str, uids: list[str]) -> np.ndarray:
+def load_embeddings(track: str, uids: list[str], cache_dir: Path | None = None) -> np.ndarray:
     """Rows of the cached matrix for `uids`, in that order - looked up BY UID,
     never by position. Verifies the cache file against its sidecar sha256."""
-    npy, sidecar = cache_paths(track)
+    npy, sidecar = cache_paths(track, cache_dir)
     if not npy.exists() or not sidecar.exists():
         raise FileNotFoundError(f"No embedding cache for {track}. Run: python scripts/cache_embeddings.py")
     meta = json.loads(sidecar.read_text(encoding="utf-8"))

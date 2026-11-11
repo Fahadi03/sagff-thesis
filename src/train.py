@@ -60,6 +60,7 @@ CONDITIONS = ("sagff", "baseline-cap", "concat-cap", "sagff-noise-perepoch",
               "sagff-permuted-fixed", "baseline", "concat")
 PERMUTATION_MODE = {"sagff-noise-perepoch": "per-epoch", "sagff-permuted-fixed": "fixed"}
 GATE_BINS = 20
+EXTENSION_HOOKS = ("split_base", "cache_dir", "save_predictions")
 
 
 @dataclass
@@ -73,6 +74,12 @@ class RunSpec:
     evaluate_test: bool = True           # False for selection runs: test is never loaded
     log_dir: Path = field(default_factory=lambda: ROOT / "results" / "runs")
     tag: str = ""                        # extra run_id suffix (selection runs)
+    # Opt-in hooks for the Spanish and Hindi extension (docs/PROTOCOL.md §12). At their
+    # defaults the run, and its JSON log, are exactly as before: the keys are left out
+    # of the logged spec and no predictions are written.
+    split_base: Path | None = None       # split directory with its own manifest.json
+    cache_dir: Path | None = None        # embedding cache directory (src/embeddings.py)
+    save_predictions: bool = False       # write the predicted label of every test uid
 
     @property
     def head(self) -> str:
@@ -131,7 +138,7 @@ def library_versions() -> dict:
 def load_split(spec: RunSpec) -> tuple[dict, dict, list[str]]:
     """Read the split files listed in the manifest and verify their sha256.
     Test (and its sha) is only touched when spec.evaluate_test is True."""
-    base = SPLIT_BASES[spec.dirty]
+    base = SPLIT_BASES[spec.dirty] if spec.split_base is None else Path(spec.split_base)
     manifest = json.loads((base / "manifest.json").read_text(encoding="utf-8"))
     entry = next(e for e in manifest["splits"]
                  if e["track"] == spec.track and e["k"] == spec.k and e["seed"] == spec.seed)
@@ -179,11 +186,19 @@ def run(spec: RunSpec) -> dict:
         raise FileExistsError(f"{out} exists; run files are never overwritten (R6)")
     out.parent.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
-    log_dir = Path(spec.log_dir).resolve()
+
+    def rel(p) -> str:
+        p = Path(p).resolve()
+        return (p.relative_to(ROOT) if p.is_relative_to(ROOT) else p).as_posix()
+
+    spec_log = {**asdict(spec), "head": spec.head, "log_dir": rel(spec.log_dir)}
+    for key in EXTENSION_HOOKS:                  # opt-in hooks: logged only when used
+        if getattr(spec, key) in (None, False):
+            spec_log.pop(key)
+        elif key != "save_predictions":
+            spec_log[key] = rel(getattr(spec, key))
     log = {"run_id": spec.run_id, "status": "running",
-           "spec": {**asdict(spec), "head": spec.head,
-                    "log_dir": (log_dir.relative_to(ROOT) if log_dir.is_relative_to(ROOT)
-                                else log_dir).as_posix()},
+           "spec": spec_log,
            "dirty": spec.dirty, "permuted": spec.permuted,
            "permutation_mode": spec.permutation_mode, "git": git_state()}
     try:
@@ -237,8 +252,8 @@ def _run(spec: RunSpec) -> dict:
             perm_info[name] = {"n": len(p), "fixed_points": int((p == np.arange(len(p))).sum())}
 
     # frozen embeddings, looked up BY UID
-    E = {n: load_embeddings(spec.track, [r["uid"] for r in rows]) for n, rows in splits.items()}
-    sidecar = json.loads(cache_paths(spec.track)[1].read_text(encoding="utf-8"))
+    E = {n: load_embeddings(spec.track, [r["uid"] for r in rows], spec.cache_dir) for n, rows in splits.items()}
+    sidecar = json.loads(cache_paths(spec.track, spec.cache_dir)[1].read_text(encoding="utf-8"))
     y = {n: np.array([r["label_id"] for r in rows]) for n, rows in splits.items()}
     T = {n: (torch.from_numpy(E[n]), torch.from_numpy(X[n].toarray().astype(np.float32)),
              torch.from_numpy(y[n])) for n in splits}
@@ -323,6 +338,8 @@ def _run(spec: RunSpec) -> dict:
     if spec.evaluate_test:
         pred, g1 = predict("test")
         metrics["test"] = {**macro_f1_acc(y["test"], pred, n_classes), "n": int(len(y["test"]))}
+        if spec.save_predictions:   # opt-in (§12 rescoring): predicted label id per test uid
+            metrics["test"]["predictions"] = {u: int(p) for u, p in zip(uids["test"], pred)}
         if spec.head == "sagff":
             gate_log.update(gate_stats(g1.numpy(), "gate_"))
             init_dim = np.array(gate_log["gate_init_mean_per_dim"])
