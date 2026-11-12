@@ -14,6 +14,9 @@ data/extension/*
 !data/extension/splits/
 data/extension/splits/*
 !data/extension/splits/manifest.json
+!data/extension/splits_bn_cl/
+data/extension/splits_bn_cl/*
+!data/extension/splits_bn_cl/manifest.json
 
 # --- Environment / tooling
 .venv/

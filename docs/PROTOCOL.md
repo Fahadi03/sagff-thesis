@@ -1224,3 +1224,42 @@ language at Bangla and changes the translation method.
 - Like es and hi, the bn-cl text is not reviewed by a human translator.
 - With n = 10 the test has limited power; a non-significant E4 is not evidence
   that the two Bangla texts behave identically.
+
+### Note 2026-11-13: bn-cl translation completed (before any embedding, check or run)
+
+Recorded after the translation of the track `bnintent30-bn-cl` and before any
+embedding, quality check, split, collision diagnostic or run of it. The text above
+is unchanged.
+
+- **Reference file.** `data/extension/bn_cl.jsonl`, one `{uid, text}` line per
+  clean uid (4,096 lines, sorted by uid; gitignored, never committed), SHA-256
+  `f01ed4bc007771dae2088bf3889fd6600cbb93a9545c17a8f950d75f7852c40e`.
+  Every later step reads this file and fails if the hash differs.
+- **Translator.** Claude (Anthropic), model Fable 5.2 (model ID
+  `claude-fable-5-2`), in one Claude Code session of the Claude desktop app on the
+  repository's PC, on 2026-11-12 and 2026-11-13. The session was interrupted
+  several times by usage limits and resumed; the model setting did not change.
+- **Procedure, as registered.** `scripts/extension_bn_cl_translate.py export`
+  wrote one batch file per intent (30 files, 115 to 150 rows each) from
+  `data/clean/bnintent30-en.jsonl`. The translator was shown only the row index
+  and the English sentence of each batch (the uid column was not displayed) and
+  wrote one `index|Bangla` line per row. `... merge` joined them to uids by index
+  and passed its checks: every row has exactly one non-empty line containing
+  Bengali script. No translation library, model or external API was used.
+- **Blindness.** Between the registration commit and the merge, the session
+  opened no `bn_text`, no `data/clean/bnintent30-bn.jsonl` and no Bangla split
+  file, and displayed no original Bangla text. The known limit stated in the
+  registration (earlier exposure of the session and of the model) stands.
+- **Translator's conventions** (applied throughout, not chosen from any result):
+  informal second person; Bengali digits for numbers; proper names, song titles
+  and quoted lyrics transliterated into Bengali script; in the `spelling` intent
+  the English word to be spelled and single letters are kept in Latin script;
+  phrases the user asks to have translated (intent `translate`) are rendered in
+  Bangla; incomplete or ungrammatical English sentences are translated as they
+  stand. No line was edited after the merge.
+- **Provenance.** The 30 input and 30 output batch files are kept under
+  `data/extension/provenance/bn_cl/` (gitignored).
+- **Organisation of outputs (no change of design).** The track has its own split
+  directory and manifest (`data/extension/splits_bn_cl/`), and its numbers-only
+  files carry the suffix `_bn_cl` under `results/extension/`, so that the es/hi
+  manifest and every es/hi output remain byte-identical.

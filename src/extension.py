@@ -33,6 +33,17 @@ EXPECTED_SHA256 = {  # docs/PROTOCOL.md §12, amendment 2026-11-10
     "hi": "c4b272ccaab6e76c902ffecce36285f357ddd0ad108813d686fbb2dfc5feed7a",
 }
 
+# Bangla translation-method control (§12, amendment 2026-11-12): the same rows with Bangla
+# written by Claude from English. It has its own split directory and manifest, so the es/hi
+# manifest and every es/hi output stay byte-identical.
+CONTROL = "bn-cl"
+TRACK[CONTROL] = "bnintent30-bn-cl"
+CONTROL_SPLIT_BASE = EXT / "splits_bn_cl"
+EXPECTED_SHA256[CONTROL] = "f01ed4bc007771dae2088bf3889fd6600cbb93a9545c17a8f950d75f7852c40e"  # §12 note 2026-11-13
+TRANSLATION_FILE = {"es": "es.jsonl", "hi": "hi.jsonl", CONTROL: "bn_cl.jsonl"}
+# group -> (languages, split directory, suffix of its files under results/extension/)
+GROUPS = {"es-hi": (LANGS, SPLIT_BASE, ""), CONTROL: ((CONTROL,), CONTROL_SPLIT_BASE, "_bn_cl")}
+
 
 def sha256_bytes(b: bytes) -> str:
     return hashlib.sha256(b).hexdigest()
@@ -40,10 +51,11 @@ def sha256_bytes(b: bytes) -> str:
 
 def load_translations(lang: str) -> dict[str, str]:
     """{uid: text} of the reference translation; refuses a file whose hash differs from §12."""
-    raw = (EXT / f"{lang}.jsonl").read_bytes()
+    name = TRANSLATION_FILE[lang]
+    raw = (EXT / name).read_bytes()
     got = sha256_bytes(raw)
     if got != EXPECTED_SHA256[lang]:
-        raise RuntimeError(f"data/extension/{lang}.jsonl sha256 {got} != {EXPECTED_SHA256[lang]} "
+        raise RuntimeError(f"data/extension/{name} sha256 {got} != {EXPECTED_SHA256[lang]} "
                            "recorded in docs/PROTOCOL.md §12")
     return {r["uid"]: r["text"] for r in map(json.loads, raw.decode("utf-8").splitlines())}
 

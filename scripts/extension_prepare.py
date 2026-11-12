@@ -16,7 +16,9 @@ Collision diagnostics (descriptive; nothing is removed, §12 "Rows"):
 
 Writes results/extension/collisions.md (numbers only).
 
-Usage (from the repository root):  python scripts/extension_prepare.py
+Usage (from the repository root):  python scripts/extension_prepare.py          (es, hi)
+                                   python scripts/extension_prepare.py bn-cl    (Bangla control:
+                                   data/extension/splits_bn_cl/, results/extension/collisions_bn_cl.md)
 """
 import json
 import sys
@@ -27,12 +29,19 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.data import STEPS, dedup_key  # noqa: E402
-from src.extension import (KS, LANGS, SEEDS, SOURCE_TRACK, SPLIT_BASE, TRACK,  # noqa: E402
+from src.extension import (GROUPS, KS, SEEDS, SOURCE_TRACK, TRACK, TRANSLATION_FILE,  # noqa: E402
                            colliding_test_uids, load_translations, read_jsonl, sha256_bytes)
+
+# Group: "es-hi" (default) or "bn-cl" (the Bangla translation-method control, §12 amendment
+# 2026-11-12). Each group has its own split directory, manifest and collisions file.
+GROUP = sys.argv[1] if len(sys.argv) > 1 else "es-hi"
+LANGS, SPLIT_BASE, SUFFIX = GROUPS[GROUP]
+DESCRIPTION = {"es-hi": "the reference es/hi translations",
+               "bn-cl": "the reference bn-cl translation (Bangla written by Claude from English)"}[GROUP]
 
 MAIN = ROOT / "data" / "splits"
 FILES = ("train", "val", "test", "val_full")
-OUT = ROOT / "results" / "extension" / "collisions.md"
+OUT = ROOT / "results" / "extension" / f"collisions{SUFFIX}.md"
 
 
 def jsonl_bytes(rows: list[dict]) -> bytes:
@@ -55,10 +64,10 @@ def build_splits(tr: dict[str, dict[str, str]]) -> dict:
         "generator": "scripts/extension_prepare.py",
         "condition": "clean",
         "description": "docs/PROTOCOL.md §12: the clean bnintent30-en splits (same uids, order and labels) "
-                       "with the text replaced by the reference es/hi translations",
+                       "with the text replaced by " + DESCRIPTION,
         "source_manifest": "data/splits/manifest.json",
         "source_track": SOURCE_TRACK,
-        "translations_sha256": {lang: sha256_bytes((ROOT / "data" / "extension" / f"{lang}.jsonl").read_bytes())
+        "translations_sha256": {lang: sha256_bytes((ROOT / "data" / "extension" / TRANSLATION_FILE[lang]).read_bytes())
                                 for lang in LANGS},
         "seeds": main["seeds"], "ks": main["ks"], "files": main["files"],
         "label_names": {TRACK[lang]: main["label_names"][SOURCE_TRACK] for lang in LANGS},
@@ -119,7 +128,7 @@ def main() -> None:
              for lang in ("en", "bn")}
     names = json.loads((ROOT / "data" / "clean" / "bnintent30-en.label_names.json").read_text(encoding="utf-8"))
     rows = [{"uid": u, "intent": names[r["label_id"]], "split": r["split"], "en": r["text"],
-             "bn": clean["bn"][u]["text"], "es": tr["es"][u], "hi": tr["hi"][u]}
+             "bn": clean["bn"][u]["text"], **{lang: tr[lang][u] for lang in LANGS}}
             for u, r in sorted(clean["en"].items())]
     assert len(rows) == 4096
 
@@ -145,7 +154,7 @@ def main() -> None:
           "sensitivity analysis. Mean (min-max) over the five seeds; test split of 856 rows.", "",
           "| language | k=5 | k=10 | k=20 | k=full |", "| --- | --- | --- | --- | --- |"]
     text = {lang: {r["uid"]: r[lang] for r in rows} for lang in ("en", "bn") + LANGS}
-    by = {(e["k"], e["seed"]): e for e in manifest["splits"] if e["track"] == TRACK["es"]}
+    by = {(e["k"], e["seed"]): e for e in manifest["splits"] if e["track"] == TRACK[LANGS[0]]}
     for lang in ("en", "bn") + LANGS:
         cells = []
         for k in KS:
