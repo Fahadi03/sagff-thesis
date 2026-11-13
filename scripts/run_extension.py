@@ -15,7 +15,8 @@ results/runs/), and save the predicted label of every test uid (§12 rescoring).
 Resumable: an existing run JSON is skipped; a failed run is never re-run. Progress
 (status and timing only, blind to results) goes to stdout and logs/extension.log.
 
-Usage:  python scripts/run_extension.py
+Usage:  python scripts/run_extension.py          (es, hi: 80 runs)
+        python scripts/run_extension.py bn-cl    (Bangla control: 40 runs)
 """
 import json
 import re
@@ -28,10 +29,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from src.embeddings import cache_paths  # noqa: E402
-from src.extension import CACHE_DIR, HEADS, KS, LANGS, RUN_DIR, SEEDS, SPLIT_BASE, TRACK  # noqa: E402
+from src.extension import CACHE_DIR, GROUPS, HEADS, KS, RUN_DIR, SEEDS, TRACK  # noqa: E402
 from src.train import RunSpec, require_clean_tree, run  # noqa: E402
 
 LOG = ROOT / "logs" / "extension.log"
+# Group: "es-hi" (default, the 80 registered runs) or "bn-cl" (the 40 runs of the Bangla
+# translation-method control, §12 amendment 2026-11-12). Same settings; same run directory.
+GROUP = sys.argv[1] if len(sys.argv) > 1 else "es-hi"
+LANGS, SPLIT_BASE, _ = GROUPS[GROUP]
 
 
 def grid() -> list[RunSpec]:
@@ -73,7 +78,7 @@ def main() -> None:
     specs = grid()
     total, t0 = len(specs), time.time()
     counts = {"ok": 0, "failed": 0, "skipped_ok": 0, "skipped_failed": 0}
-    log(f"extension: {total} runs ({len(LANGS)} languages x {len(HEADS)} heads x {len(KS)} k x {len(SEEDS)} seeds)")
+    log(f"extension {GROUP}: {total} runs ({len(LANGS)} languages x {len(HEADS)} heads x {len(KS)} k x {len(SEEDS)} seeds)")
     for i, spec in enumerate(specs, 1):
         path = RUN_DIR / f"{spec.run_id}.json"
         if path.exists():
@@ -86,7 +91,7 @@ def main() -> None:
         log(f"[{i}/{total}] {spec.run_id}: {result['status']}"
             + ("" if result["status"] == "ok" else f" ERROR {result.get('error')}")
             + f" ({result['wall_clock_s']:.1f}s; elapsed {(time.time() - t0) / 60:.1f} min)")
-    log(f"extension finished in {(time.time() - t0) / 3600:.2f} h: {counts}")
+    log(f"extension {GROUP} finished in {(time.time() - t0) / 3600:.2f} h: {counts}")
 
 
 if __name__ == "__main__":

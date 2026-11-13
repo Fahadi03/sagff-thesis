@@ -10,7 +10,8 @@ Writes results/extension/embeddings.md: per track the longest tokenised utteranc
 the number of truncated utterances (§12: "any truncation is reported"), with en and bn
 from the main caches for reference.
 
-Usage (from the repository root):  python scripts/extension_embed.py
+Usage (from the repository root):  python scripts/extension_embed.py          (es, hi)
+                                   python scripts/extension_embed.py bn-cl    (Bangla control)
 """
 import json
 import sys
@@ -24,9 +25,12 @@ sys.path.insert(0, str(ROOT))
 
 from src.embeddings import (ENCODER, MAX_LENGTH, POOLING, REVISION, cache_paths,  # noqa: E402
                             encode, sha256_file, texts_sha256)
-from src.extension import CACHE_DIR, LANGS, SPLIT_BASE, TRACK, load_translations  # noqa: E402
+from src.extension import CACHE_DIR, GROUPS, TRACK, load_translations  # noqa: E402
 
-OUT = ROOT / "results" / "extension" / "embeddings.md"
+# Group: "es-hi" (default) or "bn-cl" (Bangla translation-method control, §12 amendment 2026-11-12)
+GROUP = sys.argv[1] if len(sys.argv) > 1 else "es-hi"
+LANGS, SPLIT_BASE, SUFFIX = GROUPS[GROUP]
+OUT = ROOT / "results" / "extension" / f"embeddings{SUFFIX}.md"
 
 
 def main() -> None:

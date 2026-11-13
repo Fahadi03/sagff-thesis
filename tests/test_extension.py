@@ -86,3 +86,65 @@ def test_split_files_match_manifest_and_en_labels(manifests):
                 problems.append(f"{e['path']}/{f}: more than 10% of rows identical to English")
     check(problems, "extension split files")
     assert len(ext["splits"]) == 40
+
+
+# --------------------------------------------------------------------------- #
+# Bangla translation-method control, bnintent30-bn-cl (§12, amendment 2026-11-12).
+# Its own split directory and manifest; same uid identity requirement. Skipped, with a
+# reason, when its data is absent; scripts/run_extension.py bn-cl refuses to start unless
+# this module passed with no skip.
+# --------------------------------------------------------------------------- #
+BNCL_MANIFEST = ROOT / "data" / "extension" / "splits_bn_cl" / "manifest.json"
+bncl_present = pytest.mark.skipif(
+    not (BNCL_MANIFEST.exists() and (ROOT / "data/extension/bn_cl.jsonl").exists()),
+    reason="§12 bn-cl control data absent; run scripts/extension_prepare.py bn-cl")
+
+
+@bncl_present
+def test_bn_cl_translation_matches_recorded_hash():
+    from src.extension import CONTROL, load_translations
+    tr = load_translations(CONTROL)  # raises if the sha256 differs from §12
+    assert len(tr) == 4096
+
+
+@bncl_present
+def test_bn_cl_uid_identity_with_en_bn_es_hi(manifests):
+    """bn-cl holds, per (k, seed) and split, the uid list of en, bn, es and hi, in the same order."""
+    main, ext = manifests
+    cl = json.loads(BNCL_MANIFEST.read_text(encoding="utf-8"))
+    refs = {"en": _entries(main, "bnintent30-en"), "bn": _entries(main, "bnintent30-bn"),
+            "es": _entries(ext, "bnintent30-es"), "hi": _entries(ext, "bnintent30-hi")}
+    bncl = _entries(cl, "bnintent30-bn-cl")
+    problems = [] if set(bncl) == set(refs["en"]) else ["bn-cl: (k, seed) entries differ from en"]
+    for key in sorted(refs["en"]):
+        for f in FILES:
+            for name, d in refs.items():
+                if key in bncl and bncl[key]["uids"][f] != d[key]["uids"][f]:
+                    problems.append(f"bn-cl k={key[0]} seed={key[1]} {f}: uid list differs from {name}")
+    check(problems, "uid identity bn-cl vs en/bn/es/hi")
+    assert len(bncl) == 20
+
+
+@bncl_present
+def test_bn_cl_split_files_match_manifest_and_en_labels():
+    """Every bn-cl split file matches its sha256 and uid list, and en's (uid, label) rows; text non-empty."""
+    import hashlib
+    main = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    en = _entries(main, "bnintent30-en")
+    cl = json.loads(BNCL_MANIFEST.read_text(encoding="utf-8"))
+    problems = []
+    for e in cl["splits"]:
+        for f in FILES:
+            raw = (BNCL_MANIFEST.parent / e["path"] / f"{f}.jsonl").read_bytes()
+            if hashlib.sha256(raw).hexdigest() != e["sha256"][f]:
+                problems.append(f"{e['path']}/{f}: sha256 differs from the bn-cl manifest")
+            rows = [json.loads(l) for l in raw.decode("utf-8").splitlines()]
+            ref = read_jsonl(ROOT / "data" / "splits" / en[(e["k"], e["seed"])]["path"] / f"{f}.jsonl")
+            if [r["uid"] for r in rows] != e["uids"][f]:
+                problems.append(f"{e['path']}/{f}: uids differ from the manifest")
+            if [(r["uid"], r["label_id"]) for r in rows] != [(r["uid"], r["label_id"]) for r in ref]:
+                problems.append(f"{e['path']}/{f}: (uid, label) rows differ from en")
+            if any(not r["text"].strip() for r in rows):
+                problems.append(f"{e['path']}/{f}: empty text")
+    check(problems, "bn-cl split files")
+    assert len(cl["splits"]) == 20

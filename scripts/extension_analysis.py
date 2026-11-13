@@ -48,6 +48,8 @@ def load_runs() -> tuple[dict, list[dict]]:
     R, ext = {}, []
     for p in sorted(RUN_DIR.glob("*.json")):
         log = json.loads(p.read_text(encoding="utf-8"))
+        if log["spec"]["track"] not in {TRACK[lang] for lang in LANGS}:
+            continue                     # other extension tracks (bn-cl) have their own analysis
         ext.append(log)
         if log["status"] == "ok":
             lang = log["spec"]["track"].rsplit("-", 1)[1]
