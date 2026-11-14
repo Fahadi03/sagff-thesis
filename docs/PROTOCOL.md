@@ -1263,3 +1263,31 @@ is unchanged.
   directory and manifest (`data/extension/splits_bn_cl/`), and its numbers-only
   files carry the suffix `_bn_cl` under `results/extension/`, so that the es/hi
   manifest and every es/hi output remain byte-identical.
+
+### Note 2026-11-15: exploratory text diagnostics (post hoc, after results were seen)
+
+Added after the results of E1-E4 (tables T8a-T8e and T9a-T9e) were seen. These
+diagnostics are **exploratory and post hoc**: none was registered, none is a test,
+and none changes a registered analysis, its interpretation or any existing result.
+No model is trained for them.
+
+- **Purpose.** To describe how the original Bangla text (Google Translate) and the
+  bn-cl text (Claude) differ, with en, es and hi for reference, as possible
+  explanations of the difference in baseline strength between the two Bangla
+  tracks.
+- **What is computed**, on the 4,096 clean rows of each of the five BNIntent30
+  tracks, by `scripts/bangla_text_diagnostics.py`, into
+  `results/extension/bangla_text_diagnostics.md` (numbers only):
+  1. XLM-R subword pieces per whitespace word (mean, median) and mean utterance
+     length in pieces;
+  2. at k = 5, per seed, the share of test word tokens absent from the training
+     vocabulary and the share of test items with an all-zero TF-IDF vector, as in
+     `results/tables/tfidf_coverage.md`;
+  3. in the frozen XLM-R embedding space, the mean cosine similarity of same-intent
+     and of different-intent pairs and their ratio, plus a centred variant (track
+     mean subtracted) because raw cosines of mean-pooled XLM-R vectors are close to
+     1 for all pairs;
+  4. the type-token ratio and the number of distinct word types.
+- **Use.** Any statement drawn from these numbers is labelled exploratory and post
+  hoc wherever it is reported, and is not presented as evidence for or against a
+  registered prediction.
